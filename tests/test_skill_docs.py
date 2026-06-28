@@ -140,6 +140,26 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("clipped_ornament", content)
         self.assertIn("flat_bar_fill", content)
 
+    def test_runtime_image_size_policy_does_not_create_stable_plan_json(self):
+        skill = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+        background_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "02_generate_background_plate.md").read_text(
+            encoding="utf-8"
+        ).lower()
+        atlas_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "03_generate_ui_atlas.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("--size auto", skill)
+        self.assertIn("--purpose background", skill)
+        self.assertIn("--purpose atlas", skill)
+        self.assertIn("--normalize-background-to-source", skill)
+        self.assertIn("api generation size", background_prompt)
+        self.assertIn("final background_plate.png", background_prompt)
+        self.assertIn("canvas size is a generation preference", atlas_prompt)
+        self.assertIn("not the source image dimensions", atlas_prompt)
+        self.assertNotIn("image_size_plan.json", skill)
+        self.assertIn("do not promote `sheet_plan.json`", skill)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -11,9 +11,14 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from PIL import Image
+
 
 class ImageAPIError(Exception):
     pass
+
+
+DEFAULT_SUPPORTED_SIZES = ["1536x1024", "1024x1536", "1024x1024"]
 
 
 def load_env_file(path):
@@ -71,6 +76,90 @@ def read_prompt(path):
         raise ImageAPIError(f"prompt file not found: {path}") from exc
 
 
+def load_spec(path):
+    if not path:
+        return None
+    spec_path = Path(path)
+    try:
+        return json.loads(spec_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ImageAPIError(f"spec file not found: {spec_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ImageAPIError(f"spec file is not valid JSON: {spec_path}") from exc
+
+
+def source_dimensions(spec):
+    try:
+        source = spec["source_image"]
+        width = int(source["width"])
+        height = int(source["height"])
+    except (TypeError, KeyError, ValueError) as exc:
+        raise ImageAPIError("spec.source_image.width and height are required for auto sizing") from exc
+    if width <= 0 or height <= 0:
+        raise ImageAPIError("spec.source_image.width and height must be > 0")
+    return width, height
+
+
+def parse_size(size):
+    try:
+        width_text, height_text = size.lower().split("x", 1)
+        width = int(width_text)
+        height = int(height_text)
+    except (AttributeError, ValueError) as exc:
+        raise ImageAPIError(f"invalid image size: {size}") from exc
+    if width <= 0 or height <= 0:
+        raise ImageAPIError(f"invalid image size: {size}")
+    return width, height
+
+
+def cover_crop_area_ratio(candidate_width, candidate_height, target_width, target_height):
+    candidate_aspect = candidate_width / candidate_height
+    target_aspect = target_width / target_height
+    if candidate_aspect > target_aspect:
+        kept_width = candidate_height * target_aspect
+        kept_height = candidate_height
+    else:
+        kept_width = candidate_width
+        kept_height = candidate_width / target_aspect
+    return (candidate_width * candidate_height) / (kept_width * kept_height)
+
+
+def choose_background_size(spec, supported_sizes=None):
+    source_width, source_height = source_dimensions(spec)
+    supported = supported_sizes or DEFAULT_SUPPORTED_SIZES
+    return min(
+        supported,
+        key=lambda size: cover_crop_area_ratio(*parse_size(size), source_width, source_height),
+    )
+
+
+def choose_atlas_size(_spec=None):
+    return "1536x1024"
+
+
+def normalize_background_to_source(path, spec):
+    target_width, target_height = source_dimensions(spec)
+    image_path = Path(path)
+    with Image.open(image_path) as image:
+        image = image.convert("RGBA")
+        source_width, source_height = image.size
+        source_aspect = source_width / source_height
+        target_aspect = target_width / target_height
+        if source_aspect > target_aspect:
+            crop_width = round(source_height * target_aspect)
+            crop_height = source_height
+            left = round((source_width - crop_width) / 2)
+            top = 0
+        else:
+            crop_width = source_width
+            crop_height = round(source_width / target_aspect)
+            left = 0
+            top = round((source_height - crop_height) / 2)
+        cropped = image.crop((left, top, left + crop_width, top + crop_height))
+        resized = cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        resized.save(path)
+
+
 def image_to_data_url(path):
     if not path:
         return None
@@ -92,8 +181,17 @@ def resolve_model(args, env_values):
     return args.model or config_value("IMAGE_API_MODEL", env_values)
 
 
-def resolve_size(args, env_values):
-    return args.size or config_value("IMAGE_API_SIZE", env_values, "1536x1024")
+def resolve_size(args, env_values, spec=None):
+    size = args.size or config_value("IMAGE_API_SIZE", env_values, "1536x1024")
+    if size != "auto":
+        return size
+    if args.purpose == "atlas":
+        return choose_atlas_size(spec)
+    if args.purpose == "background":
+        if spec is None:
+            raise ImageAPIError("--spec is required when --size auto is used for background")
+        return choose_background_size(spec)
+    return "1536x1024"
 
 
 def resolve_quality(args, env_values):
@@ -104,7 +202,7 @@ def resolve_response_format(args, env_values):
     return args.response_format or config_value("IMAGE_API_RESPONSE_FORMAT", env_values)
 
 
-def build_json_payload(args, env_values):
+def build_json_payload(args, env_values, spec=None):
     prompt = read_prompt(args.prompt_file)
     model = resolve_model(args, env_values)
     quality = resolve_quality(args, env_values)
@@ -112,7 +210,7 @@ def build_json_payload(args, env_values):
 
     payload = {
         "prompt": prompt,
-        "size": resolve_size(args, env_values),
+        "size": resolve_size(args, env_values, spec=spec),
         "n": args.n,
     }
     if model:
@@ -145,14 +243,14 @@ def iter_multipart_file(name, path, boundary):
     yield b"\r\n"
 
 
-def build_multipart_body(args, env_values, boundary=None):
+def build_multipart_body(args, env_values, spec=None, boundary=None):
     boundary = boundary or f"----ui-sprite-generator-{os.urandom(12).hex()}"
     model = resolve_model(args, env_values)
     quality = resolve_quality(args, env_values)
     response_format = resolve_response_format(args, env_values)
     fields = {
         "prompt": read_prompt(args.prompt_file),
-        "size": resolve_size(args, env_values),
+        "size": resolve_size(args, env_values, spec=spec),
         "n": args.n,
     }
     if model:
@@ -239,6 +337,8 @@ def parse_args(argv=None):
     parser.add_argument("--mode", choices=["auto", "generations", "edits"], default="auto")
     parser.add_argument("--prompt-file", required=True, type=Path, help="Prompt text file")
     parser.add_argument("--output", required=True, type=Path, help="Output image path")
+    parser.add_argument("--spec", type=Path, help="spec.json used for runtime auto sizing and background normalization")
+    parser.add_argument("--purpose", choices=["generic", "background", "atlas"], default="generic")
     parser.add_argument(
         "--input-image",
         action="append",
@@ -246,11 +346,16 @@ def parse_args(argv=None):
         help="Reference/source image for edits; repeat for multiple images",
     )
     parser.add_argument("--model", help="Override IMAGE_API_MODEL")
-    parser.add_argument("--size", help="Override IMAGE_API_SIZE, e.g. 1536x1024")
+    parser.add_argument("--size", help="Override IMAGE_API_SIZE, e.g. 1536x1024 or auto")
     parser.add_argument("--quality", help="Override IMAGE_API_QUALITY, e.g. high")
     parser.add_argument("--response-format", dest="response_format", help="Override IMAGE_API_RESPONSE_FORMAT")
     parser.add_argument("--n", type=int, default=1, help="Number of images to request; only first image is saved")
     parser.add_argument("--timeout", type=int, help="Override IMAGE_API_TIMEOUT seconds")
+    parser.add_argument(
+        "--normalize-background-to-source",
+        action="store_true",
+        help="After background generation, cover-crop and resize output to spec.source_image dimensions",
+    )
     return parser.parse_args(argv)
 
 
@@ -259,6 +364,7 @@ def main(argv=None):
 
     try:
         env_values = load_env_values(args)
+        spec = load_spec(args.spec)
         base_url = resolve_base_url(args, env_values)
         api_key = config_value("IMAGE_API_KEY", env_values)
         timeout = int(args.timeout or config_value("IMAGE_API_TIMEOUT", env_values, "180"))
@@ -274,17 +380,24 @@ def main(argv=None):
         if mode == "edits":
             if not args.input_image:
                 raise ImageAPIError("edits mode requires at least one --input-image")
-            body, content_type = build_multipart_body(args, env_values)
+            body, content_type = build_multipart_body(args, env_values, spec=spec)
         else:
             if args.input_image:
                 raise ImageAPIError("generations mode does not accept --input-image; use --mode edits")
-            body = json.dumps(build_json_payload(args, env_values)).encode("utf-8")
+            body = json.dumps(build_json_payload(args, env_values, spec=spec)).encode("utf-8")
             content_type = "application/json"
 
         response_body = call_api(base_url, api_key, body, content_type, timeout)
         image_bytes = extract_image_bytes(response_body)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_bytes(image_bytes)
+        if args.normalize_background_to_source:
+            if args.purpose != "background":
+                raise ImageAPIError("--normalize-background-to-source requires --purpose background")
+            if spec is None:
+                raise ImageAPIError("--normalize-background-to-source requires --spec")
+            normalize_background_to_source(args.output, spec)
+        print(f"Image request: purpose={args.purpose}; size={resolve_size(args, env_values, spec=spec)}")
         print(f"Saved image: {args.output}")
     except ImageAPIError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

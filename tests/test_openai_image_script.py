@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +32,11 @@ class OpenAIImageScriptTests(unittest.TestCase):
         self.assertIn("--run-dir", result.stdout)
         self.assertIn("--base-url", result.stdout)
         self.assertIn("--mode", result.stdout)
+        self.assertIn("--spec", result.stdout)
+        self.assertIn("--purpose", result.stdout)
         self.assertIn("--quality", result.stdout)
         self.assertIn("--response-format", result.stdout)
+        self.assertIn("--normalize-background-to-source", result.stdout)
         self.assertNotIn("--api-key", result.stdout)
 
     def test_missing_api_key_fails_with_env_guidance(self):
@@ -229,6 +233,131 @@ class OpenAIImageScriptTests(unittest.TestCase):
             self.assertIn('name="response_format"', body_text)
             self.assertIn("\r\nb64_json\r\n", body_text)
             self.assertNotIn("Bearer", body_text)
+
+    def test_auto_background_size_uses_source_aspect_without_exact_source_dimensions(self):
+        module = load_script_module()
+        spec = {"source_image": {"path": "effect.png", "width": 848, "height": 790}}
+        args = module.parse_args(
+            [
+                "--purpose",
+                "background",
+                "--size",
+                "auto",
+                "--prompt-file",
+                "prompt.txt",
+                "--output",
+                "out.png",
+            ]
+        )
+
+        size = module.resolve_size(args, {}, spec=spec)
+
+        self.assertEqual(size, "1024x1024")
+
+    def test_auto_background_size_selects_orientation_by_cover_crop_cost(self):
+        module = load_script_module()
+        landscape = {"source_image": {"path": "effect.png", "width": 1600, "height": 900}}
+        portrait = {"source_image": {"path": "effect.png", "width": 900, "height": 1600}}
+
+        landscape_args = module.parse_args(
+            [
+                "--purpose",
+                "background",
+                "--size",
+                "auto",
+                "--prompt-file",
+                "prompt.txt",
+                "--output",
+                "out.png",
+            ]
+        )
+        portrait_args = module.parse_args(
+            [
+                "--purpose",
+                "background",
+                "--size",
+                "auto",
+                "--prompt-file",
+                "prompt.txt",
+                "--output",
+                "out.png",
+            ]
+        )
+
+        self.assertEqual(module.resolve_size(landscape_args, {}, spec=landscape), "1536x1024")
+        self.assertEqual(module.resolve_size(portrait_args, {}, spec=portrait), "1024x1536")
+
+    def test_explicit_size_overrides_auto_inputs(self):
+        module = load_script_module()
+        spec = {"source_image": {"path": "effect.png", "width": 900, "height": 1600}}
+        args = module.parse_args(
+            [
+                "--purpose",
+                "background",
+                "--size",
+                "2048x1024",
+                "--prompt-file",
+                "prompt.txt",
+                "--output",
+                "out.png",
+            ]
+        )
+
+        self.assertEqual(module.resolve_size(args, {"IMAGE_API_SIZE": "auto"}, spec=spec), "2048x1024")
+
+    def test_auto_atlas_size_is_not_forced_to_source_canvas_aspect(self):
+        module = load_script_module()
+        spec = {"source_image": {"path": "effect.png", "width": 300, "height": 1200}}
+        args = module.parse_args(
+            [
+                "--purpose",
+                "atlas",
+                "--size",
+                "auto",
+                "--prompt-file",
+                "prompt.txt",
+                "--output",
+                "out.png",
+            ]
+        )
+
+        self.assertEqual(module.resolve_size(args, {}, spec=spec), "1536x1024")
+
+    def test_auto_size_requires_spec_for_background(self):
+        module = load_script_module()
+        args = module.parse_args(
+            [
+                "--purpose",
+                "background",
+                "--size",
+                "auto",
+                "--prompt-file",
+                "prompt.txt",
+                "--output",
+                "out.png",
+            ]
+        )
+
+        with self.assertRaisesRegex(module.ImageAPIError, "--spec"):
+            module.resolve_size(args, {}, spec=None)
+
+    def test_background_normalization_cover_crops_to_source_dimensions(self):
+        module = load_script_module()
+        spec = {"source_image": {"path": "effect.png", "width": 848, "height": 790}}
+
+        fake_image = mock.Mock()
+        fake_image.size = (1536, 1024)
+        fake_image.crop.return_value = fake_image
+        fake_image.resize.return_value = fake_image
+        fake_image.convert.return_value = fake_image
+
+        with mock.patch.object(module.Image, "open") as image_open:
+            image_open.return_value.__enter__.return_value = fake_image
+            module.normalize_background_to_source("generated.png", spec)
+
+        fake_image.crop.assert_called_once_with((218, 0, 1317, 1024))
+        fake_image.resize.assert_called_once_with((848, 790), module.Image.Resampling.LANCZOS)
+        fake_image.save.assert_called_once_with("generated.png")
 
 
 if __name__ == "__main__":

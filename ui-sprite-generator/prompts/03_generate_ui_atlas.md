@@ -29,6 +29,7 @@ The attached effect image is the source style reference. Match its material, col
 - You may produce separate debug/contact sheets for human viewing, but Phase 3 must use only formal atlas files.
 - A formal sprite must follow the actual silhouette of the UI element, including protruding ornaments, soft glow, bevel shadow, and transparent cutouts. A dirty rectangular cutout is failed output.
 - If source background pixels visible around a sprite edge, clipped ornament, copied text/icon fragments, neighboring UI fragments, or hard rectangular corners appear in the atlas, regenerate the sprite.
+- Canvas size is a generation preference for atlas sheet quality and packing, not the source image dimensions.
 - Prefer `1536x1024` or `1024x1536` when suitable, but custom canvas sizes and orientations are allowed.
 - Do not reduce sprite resolution to fit a canvas.
 - Preserve at least the source component resolution. Use the component's `resolution_policy.target_px`.

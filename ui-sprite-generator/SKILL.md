@@ -37,10 +37,10 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
    Output `spec.json`. This is the only semantic contract: source canvas, global style, background occlusion, components, source bboxes, resolution policy, atlas policy, layering, and render patterns.
 
 2. **Generate background plate** with `prompts/02_generate_background_plate.md`.
-   Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. Do not create a stable background report JSON.
+   Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report JSON or image size plan JSON.
 
 3. **Generate UI atlases** with `prompts/03_generate_ui_atlas.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/ui_atlas.md`. Do not handwrite `ui_atlas.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the image generation helper. Output one or more game-ready atlas PNGs under `atlas/`. Prefer `1536x1024` or `1024x1536`, but do not force all sprites into fixed canvas sizes. Each sprite must reach at least its source component resolution; default generation scale is 2x, with 3x for complex materials when practical. Do not downscale sprites to improve packing.
+   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/ui_atlas.md`. Do not handwrite `ui_atlas.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the image generation helper. Output one or more game-ready atlas PNGs under `atlas/`. Use `scripts/openai_image.py --size auto --purpose atlas --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json` when no explicit provider size is needed. Atlas canvas size is a generation preference, not the source image dimensions. Each sprite must reach at least its source component resolution; default generation scale is 2x, with 3x for complex materials when practical. Do not downscale sprites to improve packing.
 
 4. **Verify UI atlases** with `prompts/04_verify_ui_atlas.md`.
    Check each generated atlas before mapping. If QA reports missing components, wrong center semantics, invented internal texture, missing decoration, source background pixels, clipped ornament, or flat bar fill, rebuild `ui_atlas.md` with `scripts/build_atlas_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
@@ -63,7 +63,7 @@ Keep only two stable JSON files:
 | `spec.json` | Semantic UI, background, component, resolution, atlas, and rendering intent |
 | `atlas_map.json` | Atlas file and crop coordinates, sliced filename, display size, z-index, and render parameters |
 
-Do not promote `sheet_plan.json`, `background_report.json`, `slice_report.json`, or `render_report.json` to stable contracts.
+Do not promote `sheet_plan.json`, `background_report.json`, `slice_report.json`, `render_report.json`, or any generated image-size plan into stable contracts. Runtime image size selection belongs in `scripts/openai_image.py` arguments and stdout, not in another JSON artifact.
 
 ## Slicer
 
@@ -103,7 +103,7 @@ Ask the user before calling any external service. Before continuing, request the
 
 Create a shared `ui-sprite-runs/.env` from `config/image-api.env.example` and prompt the user to edit that file. A run-local `.env` may override it only for a single invocation. The .env file is the preferred environment variable source for `scripts/openai_image.py`. This avoids pasting API keys into prompts and avoids visible shell commands with tokens. Do not paste API keys into prompts, generated scripts, command arguments, logs, schemas, screenshots, or HTML. Do not commit `.env` files.
 
-Use `scripts/openai_image.py` for OpenAI-compatible image generation or edit endpoints. The script reads `IMAGE_API_BASE_URL`, `IMAGE_API_KEY`, `IMAGE_API_MODEL`, `IMAGE_API_SIZE`, `IMAGE_API_QUALITY`, `IMAGE_API_RESPONSE_FORMAT`, and `IMAGE_API_TIMEOUT` from the environment, explicit `--env-file`, or `--run-dir` env lookup. With `--run-dir ui-sprite-runs/YYYY-MM-DD-slug`, it reads `ui-sprite-runs/.env` first and then `ui-sprite-runs/YYYY-MM-DD-slug/.env` for overrides. It also accepts non-secret `--base-url` overrides, but it does not accept an API key argument. It handles JSON `/images/generations`, multipart `/images/edits`, repeated `--input-image` fields, timeout, HTTP response status errors, JSON response parsing, `b64_json` output, image URL output, and output file creation.
+Use `scripts/openai_image.py` for OpenAI-compatible image generation or edit endpoints. The script reads `IMAGE_API_BASE_URL`, `IMAGE_API_KEY`, `IMAGE_API_MODEL`, `IMAGE_API_SIZE`, `IMAGE_API_QUALITY`, `IMAGE_API_RESPONSE_FORMAT`, and `IMAGE_API_TIMEOUT` from the environment, explicit `--env-file`, or `--run-dir` env lookup. With `--run-dir ui-sprite-runs/YYYY-MM-DD-slug`, it reads `ui-sprite-runs/.env` first and then `ui-sprite-runs/YYYY-MM-DD-slug/.env` for overrides. It also accepts non-secret `--base-url` overrides, but it does not accept an API key argument. It handles JSON `/images/generations`, multipart `/images/edits`, repeated `--input-image` fields, timeout, HTTP response status errors, JSON response parsing, `b64_json` output, image URL output, output file creation, runtime `--size auto` selection, and optional background cover-crop normalization. `--purpose background` uses `spec.source_image.width/height` to choose the nearest standard generation size and can normalize the final image back to the source canvas. `--purpose atlas` treats size as a high-resolution sheet preference and does not force the source canvas aspect ratio onto atlas art.
 
 Example:
 
@@ -113,6 +113,10 @@ cp .agents/skills/ui-sprite-generator/templates/runs.gitignore ui-sprite-runs/.g
 cp .agents/skills/ui-sprite-generator/config/image-api.env.example ui-sprite-runs/.env
 python .agents/skills/ui-sprite-generator/scripts/openai_image.py \
   --run-dir ui-sprite-runs/YYYY-MM-DD-slug \
+  --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json \
+  --purpose background \
+  --size auto \
+  --normalize-background-to-source \
   --prompt-file ui-sprite-runs/YYYY-MM-DD-slug/prompts/background_plate.txt \
   --mode edits \
   --input-image ui-sprite-runs/YYYY-MM-DD-slug/input/effect.png \
