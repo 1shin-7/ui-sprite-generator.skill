@@ -40,15 +40,18 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. Do not create a stable background report JSON.
 
 3. **Generate UI atlases** with `prompts/03_generate_ui_atlas.md`.
-   Output one or more game-ready atlas PNGs under `atlas/`. Prefer `1536x1024` or `1024x1536`, but do not force all sprites into fixed canvas sizes. Each sprite must reach at least its source component resolution; default generation scale is 2x, with 3x for complex materials when practical. Do not downscale sprites to improve packing.
+   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/ui_atlas.md`. Do not handwrite `ui_atlas.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the image generation helper. Output one or more game-ready atlas PNGs under `atlas/`. Prefer `1536x1024` or `1024x1536`, but do not force all sprites into fixed canvas sizes. Each sprite must reach at least its source component resolution; default generation scale is 2x, with 3x for complex materials when practical. Do not downscale sprites to improve packing.
 
-4. **Extract atlas map** with `prompts/04_extract_atlas_map.md`.
+4. **Verify UI atlases** with `prompts/04_verify_ui_atlas.md`.
+   Check each generated atlas before mapping. If QA reports missing components, wrong center semantics, invented internal texture, missing decoration, source background pixels, clipped ornament, or flat bar fill, rebuild `ui_atlas.md` with `scripts/build_atlas_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
+
+5. **Extract atlas map** with `prompts/04_extract_atlas_map.md`.
    Output `atlas_map.json`. This is the only coordinate contract: atlas files, sprite crop bboxes, output filenames, display sizes, z-index, and render-pattern parameters.
 
-5. **Slice sprites** with `scripts/ui_slice.py`.
+6. **Slice sprites** with `scripts/ui_slice.py`.
    The slicer is mechanical: it validates inputs, crops bboxes, optionally removes border-connected background, and writes `sprites/*.png`. It does not infer, confirm, correct, generate reports, or draw debug overlays.
 
-6. **Generate Playwright HTML** with `prompts/05_generate_playwright_html.md`.
+7. **Generate Playwright HTML** with `prompts/05_generate_playwright_html.md`.
    Output `html/index.html`. Use static Jinja-style HTML/CSS with `background_plate.png` behind absolutely positioned sprites. The page serves Playwright screenshots only. JavaScript is limited to `window.__UI_READY__ = true` and optional `?debug=1` overlay. If static rendering fails, ask before injecting temporary JS patches.
 
 ## Stable Contracts
@@ -137,3 +140,4 @@ Save generated images into the invocation run directory. Large images should be 
 | Debugging atlas crops in the slicer | Use final HTML `?debug=1` overlay for render/debug inspection |
 | Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish `ui-sprite-runs/.env` configuration |
 | Shipping deterministic component slicing as a "usable result" | Treat it as invalid; crops are analysis reference only, not formal atlas art |
+| Handwriting a short atlas prompt | Use `scripts/build_atlas_prompt.py` to generate `ui_atlas.md` |
