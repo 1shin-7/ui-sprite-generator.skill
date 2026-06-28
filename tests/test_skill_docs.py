@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class SkillDocTests(unittest.TestCase):
     def test_external_image_generation_fallback_mentions_security_boundaries(self):
-        content = (ROOT / "SKILL.md").read_text(encoding="utf-8").lower()
+        content = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
 
         self.assertIn("external image generation fallback", content)
         self.assertIn("base url", content)

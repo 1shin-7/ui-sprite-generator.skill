@@ -9,7 +9,8 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "ui_slice.py"
+PACKAGE = ROOT / "ui-sprite-generator"
+SCRIPT = PACKAGE / "scripts" / "ui_slice.py"
 
 
 class UiSliceTests(unittest.TestCase):
