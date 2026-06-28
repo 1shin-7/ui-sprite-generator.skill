@@ -34,6 +34,28 @@ def load_env_file(path):
     return values
 
 
+def merge_env_files(paths):
+    values = {}
+    for path in paths:
+        if not Path(path).exists():
+            continue
+        values.update(load_env_file(path))
+    return values
+
+
+def env_paths_for_run_dir(run_dir):
+    if not run_dir:
+        return []
+    path = Path(run_dir)
+    return [path.parent / ".env", path / ".env"]
+
+
+def load_env_values(args):
+    if args.env_file:
+        return load_env_file(args.env_file)
+    return merge_env_files(env_paths_for_run_dir(args.run_dir))
+
+
 def config_value(name, env_values, default=None):
     return os.environ.get(name) or env_values.get(name) or default
 
@@ -211,7 +233,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Call an OpenAI-compatible image generation/edit endpoint using IMAGE_API_* environment variables."
     )
-    parser.add_argument("--env-file", type=Path, help="Run-local .env file with IMAGE_API_BASE_URL and IMAGE_API_KEY")
+    parser.add_argument("--env-file", type=Path, help="Explicit .env file with IMAGE_API_* values")
+    parser.add_argument("--run-dir", type=Path, help="Invocation run directory; reads ../.env then .env when --env-file is omitted")
     parser.add_argument("--base-url", help="Override IMAGE_API_BASE_URL; safe for non-secret endpoint values")
     parser.add_argument("--mode", choices=["auto", "generations", "edits"], default="auto")
     parser.add_argument("--prompt-file", required=True, type=Path, help="Prompt text file")
@@ -235,7 +258,7 @@ def main(argv=None):
     args = parse_args(argv)
 
     try:
-        env_values = load_env_file(args.env_file)
+        env_values = load_env_values(args)
         base_url = resolve_base_url(args, env_values)
         api_key = config_value("IMAGE_API_KEY", env_values)
         timeout = int(args.timeout or config_value("IMAGE_API_TIMEOUT", env_values, "180"))

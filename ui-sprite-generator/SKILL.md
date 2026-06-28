@@ -16,7 +16,6 @@ Create or reuse a run directory in the caller's current workspace:
 ```text
 ui-sprite-runs/YYYY-MM-DD-slug/
   input/effect.png
-  .env
   spec.json
   background_plate.png
   atlas/*.png
@@ -27,6 +26,10 @@ ui-sprite-runs/YYYY-MM-DD-slug/
 ```
 
 Never write run artifacts into the skill install directory, `.agents/skills`, or `.codex/skills`.
+
+Create `ui-sprite-runs/.gitignore` from `templates/runs.gitignore` before any credential prompt. Use `ui-sprite-runs/.env` as the shared image API configuration across runs. Use `ui-sprite-runs/YYYY-MM-DD-slug/.env` only when a specific run needs an override.
+
+Do not ask the user to edit a non-existent .env path. If credentials are needed and `ui-sprite-runs/.env` is missing, create `ui-sprite-runs/`, copy `config/image-api.env.example` to `ui-sprite-runs/.env`, ensure `ui-sprite-runs/.gitignore` exists, then report the exact created path for the user to edit.
 
 ## Workflow
 
@@ -83,22 +86,30 @@ python scripts/ui_slice.py \
 
 ## External Image Generation Fallback
 
+### Generation Capability Gate
+
+Run this gate before Phase 2 or Phase 3. Only generative image services count: an available imagegen tool, a configured OpenAI-compatible endpoint, or an external generation/edit service explicitly confirmed by the user. Do not check local image-processing tools as substitutes. Pillow/OpenCV/canvas/crop are reference preparation only; they may prepare masks, prompts, contact sheets, or debug overlays, but they do not satisfy the generation requirement.
+
+If no generative service is available, stop and configure the external image API. Create `ui-sprite-runs/.gitignore` and `ui-sprite-runs/.env` first if they do not exist, then ask the user to edit the created `ui-sprite-runs/.env`. Do not continue into spec-to-atlas production, deterministic slicing, or HTML reconstruction while waiting for generation credentials.
+
 Use this only when the current environment has no available image generation service for the mandatory background plate or UI atlas steps. Phase 2 and Phase 3 are mandatory generation steps; local image processing may prepare masks, prompts, or validation, but it must not replace image generation.
 
 Do not take a token-saving shortcut. "Usable result", "fast delivery", "no built-in image tool", or "preserve original style" is not a reason to replace generation with deterministic component slicing. Absolute-positioned HTML reconstruction from crops is an invalid substitute for this workflow: it produces dirty rectangular cutouts, mixed background pixels, clipped decoration, and fixed ugly corners on complex UI deco.
 
 Ask the user before calling any external service. Before continuing, request the image API base URL, model or endpoint shape, and API key delivery method. Explain that the token and uploaded effect image will be exposed to the tool execution environment and the configured image service. Recommend a temporary, low-scope, revocable API key.
 
-Create a run-local .env from `config/image-api.env.example` and prompt the user to edit that file. The .env file is the preferred environment variable source for `scripts/openai_image.py`. This avoids pasting API keys into prompts and avoids visible shell commands with tokens. Do not paste API keys into prompts, generated scripts, command arguments, logs, schemas, screenshots, or HTML. Do not commit run-local `.env` files.
+Create a shared `ui-sprite-runs/.env` from `config/image-api.env.example` and prompt the user to edit that file. A run-local `.env` may override it only for a single invocation. The .env file is the preferred environment variable source for `scripts/openai_image.py`. This avoids pasting API keys into prompts and avoids visible shell commands with tokens. Do not paste API keys into prompts, generated scripts, command arguments, logs, schemas, screenshots, or HTML. Do not commit `.env` files.
 
-Use `scripts/openai_image.py` for OpenAI-compatible image generation or edit endpoints. The script reads `IMAGE_API_BASE_URL`, `IMAGE_API_KEY`, `IMAGE_API_MODEL`, `IMAGE_API_SIZE`, `IMAGE_API_QUALITY`, `IMAGE_API_RESPONSE_FORMAT`, and `IMAGE_API_TIMEOUT` from the environment or run-local `.env`; it also accepts non-secret `--base-url` overrides, but it does not accept an API key argument. It handles JSON `/images/generations`, multipart `/images/edits`, repeated `--input-image` fields, timeout, HTTP response status errors, JSON response parsing, `b64_json` output, image URL output, and output file creation.
+Use `scripts/openai_image.py` for OpenAI-compatible image generation or edit endpoints. The script reads `IMAGE_API_BASE_URL`, `IMAGE_API_KEY`, `IMAGE_API_MODEL`, `IMAGE_API_SIZE`, `IMAGE_API_QUALITY`, `IMAGE_API_RESPONSE_FORMAT`, and `IMAGE_API_TIMEOUT` from the environment, explicit `--env-file`, or `--run-dir` env lookup. With `--run-dir ui-sprite-runs/YYYY-MM-DD-slug`, it reads `ui-sprite-runs/.env` first and then `ui-sprite-runs/YYYY-MM-DD-slug/.env` for overrides. It also accepts non-secret `--base-url` overrides, but it does not accept an API key argument. It handles JSON `/images/generations`, multipart `/images/edits`, repeated `--input-image` fields, timeout, HTTP response status errors, JSON response parsing, `b64_json` output, image URL output, and output file creation.
 
 Example:
 
 ```bash
-cp .agents/skills/ui-sprite-generator/config/image-api.env.example ui-sprite-runs/YYYY-MM-DD-slug/.env
+mkdir -p ui-sprite-runs/YYYY-MM-DD-slug
+cp .agents/skills/ui-sprite-generator/templates/runs.gitignore ui-sprite-runs/.gitignore
+cp .agents/skills/ui-sprite-generator/config/image-api.env.example ui-sprite-runs/.env
 python .agents/skills/ui-sprite-generator/scripts/openai_image.py \
-  --env-file ui-sprite-runs/YYYY-MM-DD-slug/.env \
+  --run-dir ui-sprite-runs/YYYY-MM-DD-slug \
   --prompt-file ui-sprite-runs/YYYY-MM-DD-slug/prompts/background_plate.txt \
   --mode edits \
   --input-image ui-sprite-runs/YYYY-MM-DD-slug/input/effect.png \
@@ -111,7 +122,7 @@ After the user confirms an external image API, do not substitute local Pillow, O
 
 Local crops are analysis reference only: bbox review, mask preparation, prompt references, contact sheets, or debug overlays. They are not formal atlas art, not a completed background plate, and not acceptable inputs to the final slicer except as non-output references for image generation.
 
-If a user pasted an API key directly into chat, do not reuse it in a visible shell command. State the exposure risk, recommend rotating it, then ask the user to place the replacement key in the run-local `.env` file. If an image request fails, report only the timeout, response status, or error category; never echo authorization headers.
+If a user pasted an API key directly into chat, do not reuse it in a visible shell command. State the exposure risk, recommend rotating it, then ask the user to place the replacement key in `ui-sprite-runs/.env` unless this run deliberately needs a run-local override. If an image request fails, report only the timeout, response status, or error category; never echo authorization headers.
 
 Save generated images into the invocation run directory. Large images should be referenced by path by default; show an inline image only for useful review, and prefer a downsampled thumbnail over embedding full-size output in the conversation.
 
@@ -124,5 +135,5 @@ Save generated images into the invocation run directory. Large images should be 
 | Making Phase 4 a general JS runtime | Generate static HTML for Playwright; JS is a last-resort patch |
 | Letting the slicer fix coordinates | Fix `atlas_map.json`; the slicer should fail on bad bboxes |
 | Debugging atlas crops in the slicer | Use final HTML `?debug=1` overlay for render/debug inspection |
-| Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish run-local `.env` configuration |
+| Replacing Phase 2 or Phase 3 with local segmentation | Stop and call `scripts/openai_image.py`, or ask the user to finish `ui-sprite-runs/.env` configuration |
 | Shipping deterministic component slicing as a "usable result" | Treat it as invalid; crops are analysis reference only, not formal atlas art |

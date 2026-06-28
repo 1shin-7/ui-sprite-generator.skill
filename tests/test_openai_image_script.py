@@ -28,6 +28,7 @@ class OpenAIImageScriptTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("--env-file", result.stdout)
+        self.assertIn("--run-dir", result.stdout)
         self.assertIn("--base-url", result.stdout)
         self.assertIn("--mode", result.stdout)
         self.assertIn("--quality", result.stdout)
@@ -111,6 +112,79 @@ class OpenAIImageScriptTests(unittest.TestCase):
             module.resolve_base_url(args, {"IMAGE_API_BASE_URL": "https://wrong.test/v1/images/generations"}),
             "https://example.test/v1/images/edits",
         )
+
+    def test_run_dir_loads_shared_env_and_run_local_overrides(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            run_root = work / "ui-sprite-runs"
+            run_dir = run_root / "2026-06-28-panel"
+            run_dir.mkdir(parents=True)
+            (run_root / ".env").write_text(
+                "\n".join(
+                    [
+                        "IMAGE_API_BASE_URL=https://example.test/v1/images/generations",
+                        "IMAGE_API_KEY=shared-key",
+                        "IMAGE_API_MODEL=shared-model",
+                        "IMAGE_API_SIZE=1536x1024",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / ".env").write_text(
+                "\n".join(
+                    [
+                        "IMAGE_API_MODEL=run-model",
+                        "IMAGE_API_QUALITY=high",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            module = load_script_module()
+            args = module.parse_args(
+                [
+                    "--run-dir",
+                    str(run_dir),
+                    "--prompt-file",
+                    "prompt.txt",
+                    "--output",
+                    "out.png",
+                ]
+            )
+
+            values = module.load_env_values(args)
+
+            self.assertEqual(values["IMAGE_API_BASE_URL"], "https://example.test/v1/images/generations")
+            self.assertEqual(values["IMAGE_API_KEY"], "shared-key")
+            self.assertEqual(values["IMAGE_API_MODEL"], "run-model")
+            self.assertEqual(values["IMAGE_API_SIZE"], "1536x1024")
+            self.assertEqual(values["IMAGE_API_QUALITY"], "high")
+
+    def test_run_dir_allows_missing_run_local_env(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            run_root = work / "ui-sprite-runs"
+            run_dir = run_root / "2026-06-28-panel"
+            run_dir.mkdir(parents=True)
+            (run_root / ".env").write_text(
+                "IMAGE_API_KEY=shared-key\nIMAGE_API_MODEL=shared-model\n",
+                encoding="utf-8",
+            )
+            module = load_script_module()
+            args = module.parse_args(
+                [
+                    "--run-dir",
+                    str(run_dir),
+                    "--prompt-file",
+                    "prompt.txt",
+                    "--output",
+                    "out.png",
+                ]
+            )
+
+            values = module.load_env_values(args)
+
+            self.assertEqual(values["IMAGE_API_KEY"], "shared-key")
+            self.assertEqual(values["IMAGE_API_MODEL"], "shared-model")
 
     def test_edit_multipart_supports_repeated_images(self):
         with tempfile.TemporaryDirectory() as tmp:

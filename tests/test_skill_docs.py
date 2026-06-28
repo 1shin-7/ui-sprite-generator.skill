@@ -40,7 +40,7 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("do not substitute local pillow", content)
         self.assertIn("scripts/openai_image.py", content)
         self.assertIn("config/image-api.env.example", content)
-        self.assertIn("create a run-local .env", content)
+        self.assertIn("create a shared `ui-sprite-runs/.env`", content)
         self.assertIn("do not paste api keys into prompts", content)
         self.assertIn("timeout", content)
         self.assertIn("response status", content)
@@ -58,6 +58,25 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("absolute-positioned html reconstruction from crops", content)
         self.assertIn("analysis reference only", content)
         self.assertIn("not formal atlas art", content)
+
+    def test_skill_defines_generation_capability_gate_and_shared_env(self):
+        content = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+        self.assertIn("generation capability gate", content)
+        self.assertIn("only generative image services count", content)
+        self.assertIn("do not check local image-processing tools as substitutes", content)
+        self.assertIn("pillow/opencv/canvas/crop are reference preparation only", content)
+        self.assertIn("if no generative service is available, stop and configure the external image api", content)
+        self.assertIn("ui-sprite-runs/.env", content)
+        self.assertIn("ui-sprite-runs/.gitignore", content)
+        self.assertIn("do not ask the user to edit a non-existent .env path", content)
+
+    def test_run_root_gitignore_template_ignores_shared_env(self):
+        content = (ROOT / "ui-sprite-generator" / "templates" / "runs.gitignore").read_text(encoding="utf-8")
+
+        self.assertIn(".env", content)
+        self.assertIn(".env.*", content)
+        self.assertIn("*.env", content)
 
     def test_background_prompt_forbids_whole_image_background_plate_shortcut(self):
         content = (ROOT / "ui-sprite-generator" / "prompts" / "02_generate_background_plate.md").read_text(
