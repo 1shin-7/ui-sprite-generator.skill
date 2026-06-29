@@ -71,6 +71,16 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("ui-sprite-runs/.gitignore", content)
         self.assertIn("do not ask the user to edit a non-existent .env path", content)
 
+    def test_generation_gate_prefers_native_image_tools_before_helper_fallback(self):
+        content = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+        self.assertIn("check native image-generation tools first", content)
+        self.assertIn("codex desktop", content)
+        self.assertIn("image_gen", content)
+        self.assertIn("do not ask for external image api configuration", content)
+        self.assertIn("scripts/openai_image.py is the fallback", content)
+        self.assertIn("only when no native generative tool is available", content)
+
     def test_run_root_gitignore_template_ignores_shared_env(self):
         content = (ROOT / "ui-sprite-generator" / "templates" / "runs.gitignore").read_text(encoding="utf-8")
 

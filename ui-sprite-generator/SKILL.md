@@ -43,7 +43,7 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report JSON or image size plan JSON.
 
 4. **Generate labeled spritesheets** with `prompts/03_generate_spritesheet.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/spritesheet.md`. Do not handwrite `spritesheet.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the image generation helper. Output one or more labeled spritesheet PNGs under `spritesheet/`. The default is a labeled spritesheet in `solid-key` mode, not a direct formal atlas. Direct formal atlas generation is an advanced mode only after this default pipeline is proven inadequate for a specific provider.
+   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.json --output ui-sprite-runs/YYYY-MM-DD-slug/prompts/spritesheet.md`. Do not handwrite `spritesheet.md`, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled spritesheet PNGs under `spritesheet/`. The default is a labeled spritesheet in `solid-key` mode, not a direct formal atlas. Direct formal atlas generation is an advanced mode only after this default pipeline is proven inadequate for a specific provider.
 
 5. **Verify labeled spritesheets** with `prompts/04_verify_spritesheet.md`.
    Check each generated spritesheet before mapping. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, or flat bar fill, rebuild `spritesheet.md` with `scripts/build_spritesheet_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
@@ -102,11 +102,21 @@ python scripts/ui_slice.py \
 
 ### Generation Capability Gate
 
-Run this gate before Phase 2 or Phase 3. Only generative image services count: an available imagegen tool, a configured OpenAI-compatible endpoint, or an external generation/edit service explicitly confirmed by the user. Do not check local image-processing tools as substitutes. Pillow/OpenCV/canvas/crop are reference preparation only; they may prepare masks, prompts, contact sheets, or debug overlays, but they do not satisfy the generation requirement.
+Run this gate before Phase 2 or Phase 3. Check native image-generation tools first: if the current runtime exposes an image generation tool such as Codex Desktop `image_gen`, an `imagegen` skill/tool, or another MCP/tool entry that can create or edit raster images, use that native tool for background plates and labeled spritesheets. Do not ask for external image API configuration when a native generative tool is available and sufficient for the current image task.
+
+Only generative image services count: an available native image generation tool, a configured OpenAI-compatible endpoint, or an external generation/edit service explicitly confirmed by the user. Do not check local image-processing tools as substitutes. Pillow/OpenCV/canvas/crop are reference preparation only; they may prepare masks, prompts, contact sheets, or debug overlays, but they do not satisfy the generation requirement.
+
+Use this priority order:
+
+1. Native runtime image generation tool, including Codex Desktop `image_gen` or an equivalent built-in imagegen capability.
+2. Already configured workspace or run `.env` for `scripts/openai_image.py`.
+3. External image API fallback setup.
+
+scripts/openai_image.py is the fallback only when no native generative tool is available or when the user explicitly chooses an OpenAI-compatible endpoint for this run.
 
 If no generative service is available, stop and configure the external image API. Create `ui-sprite-runs/.gitignore` and `ui-sprite-runs/.env` first if they do not exist, then ask the user to edit the created `ui-sprite-runs/.env`. Do not continue into spec-to-atlas production, deterministic slicing, or HTML reconstruction while waiting for generation credentials.
 
-Use this only when the current environment has no available image generation service for the mandatory background plate or UI atlas steps. Phase 2 and Phase 3 are mandatory generation steps; local image processing may prepare masks, prompts, or validation, but it must not replace image generation.
+Use external image API configuration only when no native generative tool is available for the mandatory background plate or UI atlas steps. Phase 2 and Phase 3 are mandatory generation steps; local image processing may prepare masks, prompts, or validation, but it must not replace image generation.
 
 Do not take a token-saving shortcut. "Usable result", "fast delivery", "no built-in image tool", or "preserve original style" is not a reason to replace generation with deterministic component slicing. Absolute-positioned HTML reconstruction from crops is an invalid substitute for this workflow: it produces dirty rectangular cutouts, mixed background pixels, clipped decoration, and fixed ugly corners on complex UI deco.
 
