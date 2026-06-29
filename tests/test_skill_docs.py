@@ -183,6 +183,29 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("surface_policy", schema)
         self.assertIn("occlusion", schema)
 
+    def test_resolution_and_bar_contracts_prevent_overgeneration(self):
+        spec_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "01_extract_spec.md").read_text(
+            encoding="utf-8"
+        ).lower()
+        sheet_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "03_generate_spritesheet.md").read_text(
+            encoding="utf-8"
+        ).lower()
+        qa_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "04_verify_spritesheet.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("icon", spec_prompt)
+        self.assertIn("max 2x", spec_prompt)
+        self.assertIn("never solve packing by increasing target_px", spec_prompt)
+        self.assertIn("bar_fill_texture", spec_prompt)
+        self.assertIn("rectangular full-width fill texture", spec_prompt)
+        self.assertIn("do not infer an irregular visible silhouette", spec_prompt)
+        self.assertIn("do not increase target_px", sheet_prompt)
+        self.assertIn("do not invent detail", sheet_prompt)
+        self.assertIn("full rectangular fill texture", sheet_prompt)
+        self.assertIn("overgenerated_detail", qa_prompt)
+        self.assertIn("non_rectangular_bar_fill", qa_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

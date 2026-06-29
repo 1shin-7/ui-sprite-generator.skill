@@ -23,13 +23,16 @@ Generate an observable labeled spritesheet, not a final transparent atlas. The s
 - Hollow or transparent centers must remain empty: no interior content, no illustrative fill, and no decorative texture unless the component explicitly declares filled content.
 - Style words affect only allowed component surfaces: border, trim, bevel, ornament, glow, material, and declared filled regions.
 - `flat_fill` must stay visually clean. Do not add painterly texture, random lines, grit, mottled shading, or invented symbols.
+- Do not invent detail. If the source UI is flat, low-detail, or icon-like, keep that same level of simplicity instead of adding extra line art, grain, symbols, cracks, brushwork, or internal texture.
 - `textured_fill` may include material detail from the source UI style.
+- `bar_fill_texture` is a full rectangular fill texture behind the frame or track. Do not infer a non-rectangular visible silhouette from frame ends, caps, ornaments, or other occluders; HTML clipping/masking handles the visible shape.
 - If `occlusion.status` is `partially_occluded`, generate a complete unobstructed sprite. Do not include the text, badge, overlay, neighbor UI, or source pixels that covered it in the effect image.
 
 ## Packing Rules
 
 - Do not force all components into one image.
 - Split sheets by group or component subset when the selected components exceed the prompt builder's fill budget.
+- Do not increase target_px, scale, or sprite resolution to solve packing.
 - Large panels, long bars, tall rails, and complex frames may be isolated in their own spritesheet.
 - Preserve target resolution and clarity over packing density.
 

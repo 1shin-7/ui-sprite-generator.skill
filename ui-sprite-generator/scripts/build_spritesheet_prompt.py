@@ -36,13 +36,16 @@ The attached effect image is the SOURCE MOCKUP. Match its UI material, color ton
 - Hollow or transparent centers must remain empty: no interior content, no illustrative fill, no material fill, and no decorative texture unless the component data explicitly says that center content exists.
 - Style words affect only allowed component surfaces: border, trim, bevel, ornament, glow, material, and declared filled regions.
 - A `flat_fill` component must stay clean and flat. Do not add painterly texture, random lines, grit, noise, brush strokes, invented symbols, or mottled shading.
+- Do not invent detail. If the source UI is flat, low-detail, or icon-like, preserve that simplicity instead of adding extra line art, grain, symbols, cracks, brushwork, or internal texture.
 - A `textured_fill` component may use the source material texture described in the UI style.
 - A `bar_fill_texture` component must be a full-width 100% fill texture with rich texture, glow, or pattern; a flat color is not acceptable.
+- A `bar_fill_texture` component is a full rectangular fill texture behind its track or frame. Do not infer a non-rectangular silhouette from decorative frame occlusion; clipping and masking happen later in HTML.
 - For `occlusion.status = partially_occluded`, redraw a complete unobstructed sprite. Do not include the text, badge, floating overlay, neighboring sprite, or source pixels that cover it in the mockup.
 - Preserve all declared attached decorations and protruding silhouettes.
 - Keep enough bleed around antialiasing, shadows, glows, and ornaments.
 - Do not rotate components.
 - Split into multiple spritesheets when needed. Do not prioritize fitting one canvas over clarity or target resolution.
+- Do not increase target_px to solve packing; split the request into smaller sheets instead.
 
 ## Output Naming
 
@@ -101,15 +104,42 @@ def target_area(components):
     return sum(width * height for width, height in (target_px(component) for component in components))
 
 
-def enforce_fill_ratio(components, canvas_size, max_fill_ratio):
+def fill_budget(components, canvas_size, max_fill_ratio):
     canvas_width, canvas_height = parse_size(canvas_size)
     area = target_area(components)
     limit = canvas_width * canvas_height * max_fill_ratio
-    if area > limit:
-        raise PromptBuildError(
-            f"selected components target area {area} exceeds max fill ratio "
-            f"{max_fill_ratio:.2f} for canvas {canvas_size}; select a smaller group"
+    return area, int(limit), area > limit
+
+
+def max_generation_scale(component):
+    role = component.get("role", "").lower()
+    surface_policy = component.get("surface_policy", "").lower()
+    if role == "bar_fill_texture" or surface_policy == "flat_fill":
+        return 2
+    if "icon" in role or "badge" in role:
+        return 2
+    return 3
+
+
+def packing_guidance(selected_area, fill_limit, over_budget):
+    lines = [
+        "## Packing Guidance",
+        "",
+        f"- selected_target_area: {selected_area}",
+        f"- fill_budget_area: {fill_limit}",
+    ]
+    if over_budget:
+        lines.extend(
+            [
+                "- Selected components exceed the fill budget for this canvas.",
+                "- Action: split this request into smaller sheets by `atlas_group` or explicit `--component-id` subsets.",
+                "- Do not increase target_px, scale, or sprite resolution to make packing look better.",
+            ]
         )
+    else:
+        lines.append("- Selected components fit within the fill budget.")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def style_contract(spec):
@@ -163,6 +193,7 @@ def component_contract_markdown(components):
                 f"- occlusion_reconstruction: {occlusion.get('reconstruction', 'redraw as visible')}",
                 f"- render_pattern: {component['render_pattern']}",
                 f"- target_px: {format_target(component)}",
+                f"- max_generation_scale: {max_generation_scale(component)}x",
                 f"- atlas_group: {component['atlas_policy']['group']}",
                 f"- minimum_gutter: {component['atlas_policy']['minimum_gutter']}",
                 f"- states: {', '.join(component['states']) or 'default'}",
@@ -197,7 +228,7 @@ def build_prompt(
     include_raw_json=True,
 ):
     components = select_components(spec, component_group=component_group, component_ids=component_ids)
-    enforce_fill_ratio(components, canvas_size, max_fill_ratio)
+    selected_area, fill_limit, over_budget = fill_budget(components, canvas_size, max_fill_ratio)
     style = style_contract(spec)
     sections = [
         CANONICAL_PROMPT.rstrip(),
@@ -210,6 +241,7 @@ def build_prompt(
         "- canvas size is a generation preference, not the source image dimensions.",
         background_contract(sheet_mode),
         "",
+        packing_guidance(selected_area, fill_limit, over_budget),
         component_contract_markdown(components),
     ]
     if include_raw_json:
