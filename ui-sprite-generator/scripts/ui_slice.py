@@ -16,7 +16,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from atlas_maps import AtlasMapError, load_legacy_atlas_map, load_per_atlas_maps, resolve_path
+from atlas_maps import AtlasMapError, load_legacy_atlas_map, load_per_atlas_maps, resolve_path  # noqa: E402
 
 
 SAFE_FILENAME = re.compile(r"^[A-Za-z0-9_.-]+\.png$")

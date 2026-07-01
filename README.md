@@ -25,7 +25,7 @@
 ## Features
 
 - Reconstructs UI mockups as semantic assets instead of rectangular screenshot crops.
-- Generates a `spec.yaml` contract for source bboxes, component roles, occlusion, surfaces, resolution policy, and render patterns.
+- Generates a strict `spec.yaml` v1.2 contract with reusable component definitions and lightweight layout instances.
 - Restores `background_plate.png` by removing foreground UI and regenerating occluded background regions.
 - Uses labeled atlas sheets by default so agents and humans can verify component identity before slicing.
 - Keeps each atlas image next to its own `*.map.yaml`, so VLM crop extraction only sees one image at a time.
@@ -47,13 +47,16 @@ The workflow is intentionally split into contracts and mechanical steps:
 
 1. `spec.yaml` describes what the mockup means.
 2. `background_plate.png` restores the world behind the UI.
-3. Labeled atlas sheets regenerate clean UI components with visible external ids.
-4. `atlas/*.map.yaml` records crop coordinates for one atlas image at a time.
-5. `render.yaml` combines spec-sourced layout with per-atlas sprite filenames.
-6. `ui_slice.py` slices sprites without inventing or correcting art.
-7. `index.html` reconstructs the scene for Playwright screenshots.
+3. `components[]` defines each reusable sprite once; `instances[]` places it in the source scene.
+4. Labeled atlas sheets regenerate clean UI components with visible external ids.
+5. `atlas/*.map.yaml` records crop coordinates for one atlas image at a time.
+6. `render.yaml` combines instance layout with per-atlas sprite filenames.
+7. `ui_slice.py` slices sprites without inventing or correcting art.
+8. `index.html` reconstructs the scene for Playwright screenshots.
 
 The default is labeled atlas sheets, not an unlabeled formal atlas. Labels make failures observable: missing decorations, polluted flat fills, occlusion contamination, label overlap, overgenerated detail, and non-rectangular bar fills can be caught before final slicing.
+
+Repeated UI elements are deduplicated only when they are exactly identical and interchangeable. Near-duplicates stay separate.
 
 ## Dev
 

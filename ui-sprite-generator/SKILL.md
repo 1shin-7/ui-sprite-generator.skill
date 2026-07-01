@@ -35,16 +35,16 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
 ## Workflow
 
 1. **Extract spec** with `prompts/01_extract_spec.md`.
-   Output draft `spec.yaml`. This is the semantic and layout contract: source canvas, UI style, background style, background occlusion, components, source bboxes, surface policy, occlusion reconstruction, resolution policy, atlas policy, layering, and render patterns.
+   Output draft `spec.yaml` with `schema_version: "1.2"`. This is the semantic and layout contract: source canvas, UI style, background style, background occlusion, reusable `components[]`, layout `instances[]`, surface policy, occlusion reconstruction, resolution policy, atlas policy, layering, and render patterns.
 
 2. **Verify spec** with `prompts/02_verify_spec.md`.
-   Output corrected `spec.yaml`. This step is mandatory because VLMs may avoid overlapping bboxes, miss companion fill sprites, or fail to reconstruct partially occluded components.
+   Output corrected `spec.yaml`. This step is mandatory because VLMs may avoid overlapping bboxes, over-merge near-duplicate components, miss companion fill sprites, or fail to reconstruct partially occluded components.
 
 3. **Generate background plate** with `prompts/02_generate_background_plate.md`.
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report YAML or image size plan YAML.
 
 4. **Generate labeled atlas sheets** with `prompts/03_generate_spritesheet.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default is a labeled sheet in `solid-key` mode, not an unlabeled formal atlas.
+   First generate the formal Markdown prompt artifact with `scripts/build_spritesheet_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. The prompt selects reusable `components[]` and includes their source instances as bbox references. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default is a labeled sheet in `solid-key` mode, not an unlabeled formal atlas.
 
 5. **Verify labeled atlas sheets** with `prompts/04_verify_spritesheet.md`.
    Check each generated atlas sheet before mapping. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, or flat bar fill, rebuild a focused `atlas/<name>.prompt.md` with `scripts/build_spritesheet_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
@@ -56,19 +56,21 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
    The slicer is mechanical: it validates inputs, crops bboxes, optionally removes border-connected background, and writes `sprites/*.png`. It does not infer, confirm, correct, generate reports, or draw debug overlays.
 
 8. **Build render manifest** with `scripts/build_render_manifest.py`.
-   Output `render.yaml`. This compact HTML input joins layout from `spec.yaml` with sprite filenames from `atlas/*.map.yaml`. spec.yaml is authoritative for source bbox, display size, z-index, render pattern, companions, and layer intent.
+   Output `render.yaml`. This compact HTML input joins instance layout from `spec.yaml` with sprite filenames from `atlas/*.map.yaml`. spec.yaml is authoritative: `instances[]` are authoritative for source bbox, display size, z-index, render-param overrides, and layer intent; `components[]` are authoritative for render pattern and sprite identity.
 
 9. **Generate Playwright HTML** with `prompts/05_generate_playwright_html.md`.
    Output `index.html` from `render.yaml`. Use static Jinja-style HTML/CSS with `background_plate.png` behind absolutely positioned sprites. The page serves Playwright screenshots only. JavaScript is limited to `window.__UI_READY__ = true` and optional `?debug=1` overlay. If static rendering fails, ask before injecting temporary JS patches. Capture the Playwright verification screenshot as `final.png`.
 
 ## Stable Contracts
 
-Keep two stable YAML-first contract files. Existing `atlas_map.yaml` or `.json` run files remain readable as legacy input for helper scripts, but the new workflow does not create a global atlas map.
+Keep two stable YAML-first contract files. `spec.yaml` is strict `schema_version: "1.2"`; old `spec.yaml` files where `components[]` also carried layout are not accepted. Existing `atlas_map.yaml` or `.json` run files remain readable as legacy input for helper scripts, but the new workflow does not create a global atlas map.
 
 | File | Purpose |
 | --- | --- |
-| `spec.yaml` | Semantic UI, background, component, layout, resolution, atlas, and rendering intent |
+| `spec.yaml` | Semantic UI, background, reusable component definitions, layout instances, resolution, atlas, and rendering intent |
 | `render.yaml` | Compact HTML input with spec-sourced layout and atlas-sourced sprite filenames |
+
+`components[]` defines sprite art once. `instances[]` places that art in the source scene. Merge only exactly identical component definitions; do not merge near-duplicates, mirrored or rotated variants, state variants, different lighting or shadow direction, unique attached decorations, or anything uncertain.
 
 `atlas/*.map.yaml` files are scoped per-atlas crop contracts for VLM accuracy. They are not a global stable contract and must be merged only in script memory while slicing or building `render.yaml`. Do not promote `atlas_map.yaml` into the new workflow. Do not promote `sheet_plan.yaml`, `background_report.yaml`, `slice_report.yaml`, `render_report.yaml`, or any generated image-size plan into stable contracts. Runtime image size and atlas packing decisions belong in helper arguments, generated prompts, and stdout, not in another stable artifact.
 

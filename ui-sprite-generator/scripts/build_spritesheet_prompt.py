@@ -9,7 +9,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from data_io import DataIOError, load_data
+from data_io import DataIOError, load_data  # noqa: E402
 
 
 class PromptBuildError(Exception):
@@ -70,6 +70,11 @@ def load_spec(path):
         raise PromptBuildError(str(exc)) from exc
 
 
+def require_spec_v12(spec):
+    if spec.get("schema_version") != "1.2":
+        raise PromptBuildError("spec.schema_version must be 1.2")
+
+
 def parse_size(size):
     try:
         width_text, height_text = size.lower().split("x", 1)
@@ -83,6 +88,7 @@ def parse_size(size):
 
 
 def select_components(spec, component_group=None, component_ids=None):
+    require_spec_v12(spec)
     components = list(spec.get("components", []))
     if component_group:
         components = [
@@ -96,6 +102,18 @@ def select_components(spec, component_group=None, component_ids=None):
     if not components:
         raise PromptBuildError("no components selected for spritesheet prompt")
     return components
+
+
+def source_instances_by_component(spec):
+    grouped = {}
+    for instance in spec.get("instances", []):
+        if instance.get("rendered") is False:
+            continue
+        component_id = instance.get("uses")
+        if not component_id:
+            continue
+        grouped.setdefault(component_id, []).append(instance)
+    return grouped
 
 
 def target_px(component):
@@ -173,7 +191,11 @@ def background_contract(sheet_mode):
     return "- Use a solid `#e0e0e0` canvas background. The key color is outside sprites and may be removed by the slicer."
 
 
-def component_contract_markdown(components):
+def format_instance(instance):
+    return f"{instance['id']} ({format_bbox(instance['source_bbox'])})"
+
+
+def component_contract_markdown(components, source_instances):
     lines = [
         "## Selected Component Contract",
         "",
@@ -187,7 +209,7 @@ def component_contract_markdown(components):
                 f"### {index}. `{component['id']}`",
                 "",
                 f"- role: {component['role']}",
-                f"- source_bbox: {format_bbox(component['source_bbox'])}",
+                f"- source_instances: {'; '.join(format_instance(item) for item in source_instances.get(component['id'], [])) or 'none'}",
                 f"- visual_description: {component['visual_description']}",
                 f"- attached_decorations: {', '.join(component['attached_decorations']) or 'none'}",
                 f"- center: {component['center']}",
@@ -207,8 +229,18 @@ def component_contract_markdown(components):
     return "\n".join(lines)
 
 
-def raw_json_markdown(style, components):
-    data = {"style": style, "components": components}
+def raw_json_markdown(style, components, source_instances):
+    data = {
+        "style": style,
+        "components": components,
+        "source_instances": {
+            component["id"]: [
+                {"id": instance["id"], "source_bbox": instance["source_bbox"]}
+                for instance in source_instances.get(component["id"], [])
+            ]
+            for component in components
+        },
+    }
     return "\n".join(
         [
             "## Raw Selected Spec JSON",
@@ -237,6 +269,7 @@ def build_prompt(
     include_raw_json=True,
 ):
     components = select_components(spec, component_group=component_group, component_ids=component_ids)
+    source_instances = source_instances_by_component(spec)
     selected_area, fill_limit, over_budget = fill_budget(components, canvas_size, max_fill_ratio)
     style = style_contract(spec)
     sections = [
@@ -251,10 +284,10 @@ def build_prompt(
         background_contract(sheet_mode),
         "",
         packing_guidance(selected_area, fill_limit, over_budget),
-        component_contract_markdown(components),
+        component_contract_markdown(components, source_instances),
     ]
     if include_raw_json:
-        sections.append(raw_json_markdown(style, components))
+        sections.append(raw_json_markdown(style, components, source_instances))
     return "\n".join(sections).rstrip() + "\n"
 
 

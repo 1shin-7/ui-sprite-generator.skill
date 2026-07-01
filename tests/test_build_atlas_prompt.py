@@ -20,10 +20,12 @@ def load_script_module():
 
 def minimal_spec():
     return {
-        "schema_version": "1.0",
-        "source_image": {"path": "input/effect.png", "width": 800, "height": 600},
+        "schema_version": "1.2",
+        "source_image": {"path": "effect.png", "width": 800, "height": 600},
         "style": {
             "description": "ornate fantasy UI",
+            "ui_style": "ornate fantasy UI",
+            "background_style": "painted background",
             "palette": ["gold", "jade"],
             "materials": ["polished metal", "translucent glass"],
             "lighting": "soft rim glow",
@@ -40,10 +42,11 @@ def minimal_spec():
             {
                 "id": "main_frame",
                 "role": "panel frame",
-                "source_bbox": {"x": 10, "y": 20, "w": 400, "h": 300},
                 "visual_description": "ornate hollow frame",
                 "attached_decorations": ["corner trim"],
                 "center": "hollow",
+                "surface_policy": "hollow",
+                "occlusion": {"status": "unoccluded", "occluders": [], "reconstruction": "redraw as visible"},
                 "render_pattern": "nine_slice",
                 "resolution_policy": {
                     "minimum_source_scale": 1,
@@ -52,17 +55,17 @@ def minimal_spec():
                     "allow_downscale": False,
                 },
                 "atlas_policy": {"group": "panels", "can_share_sheet": True, "minimum_gutter": 32},
-                "layering": {"z_index": 10, "anchor": "top_left"},
                 "states": ["default"],
                 "companions": [],
             },
             {
                 "id": "bar_fill",
                 "role": "progress fill",
-                "source_bbox": {"x": 30, "y": 500, "w": 300, "h": 30},
                 "visual_description": "luminous fill texture",
                 "attached_decorations": [],
                 "center": "filled",
+                "surface_policy": "textured_fill",
+                "occlusion": {"status": "unoccluded", "occluders": [], "reconstruction": "redraw as visible"},
                 "render_pattern": "linear_clip",
                 "resolution_policy": {
                     "minimum_source_scale": 1,
@@ -71,9 +74,22 @@ def minimal_spec():
                     "allow_downscale": False,
                 },
                 "atlas_policy": {"group": "bars", "can_share_sheet": True, "minimum_gutter": 24},
-                "layering": {"z_index": 20, "anchor": "top_left"},
                 "states": ["default"],
                 "companions": ["bar_track"],
+            },
+        ],
+        "instances": [
+            {
+                "id": "main_frame_primary",
+                "uses": "main_frame",
+                "source_bbox": {"x": 10, "y": 20, "w": 400, "h": 300},
+                "layering": {"z_index": 10, "anchor": "top_left"},
+            },
+            {
+                "id": "bar_fill_primary",
+                "uses": "bar_fill",
+                "source_bbox": {"x": 30, "y": 500, "w": 300, "h": 30},
+                "layering": {"z_index": 20, "anchor": "top_left"},
             },
         ],
     }
@@ -116,6 +132,8 @@ class BuildAtlasPromptTests(unittest.TestCase):
             self.assertIn("## Atlas Rules", content)
             self.assertIn("```json", content)
             self.assertIn("main_frame", content)
+            self.assertIn("source_instances", content)
+            self.assertIn("main_frame_primary", content)
             self.assertIn("center: hollow", content)
             self.assertIn("render_pattern: nine_slice", content)
             self.assertIn("target_px: 800x600", content)

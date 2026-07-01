@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "UI Sprite Spec",
   "type": "object",
-  "required": ["schema_version", "source_image", "style", "background", "components"],
+  "required": ["schema_version", "source_image", "style", "background", "components", "instances"],
   "properties": {
-    "schema_version": { "const": "1.1" },
+    "schema_version": { "const": "1.2" },
     "source_image": {
       "type": "object",
       "required": ["path", "width", "height"],
@@ -63,6 +63,11 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/component" }
+    },
+    "instances": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/instance" }
     }
   },
   "$defs": {
@@ -72,6 +77,15 @@
       "properties": {
         "x": { "type": "integer", "minimum": 0 },
         "y": { "type": "integer", "minimum": 0 },
+        "w": { "type": "integer", "minimum": 1 },
+        "h": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "size": {
+      "type": "object",
+      "required": ["w", "h"],
+      "properties": {
         "w": { "type": "integer", "minimum": 1 },
         "h": { "type": "integer", "minimum": 1 }
       },
@@ -91,7 +105,6 @@
       "required": [
         "id",
         "role",
-        "source_bbox",
         "visual_description",
         "attached_decorations",
         "center",
@@ -100,14 +113,12 @@
         "render_pattern",
         "resolution_policy",
         "atlas_policy",
-        "layering",
         "states",
         "companions"
       ],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
         "role": { "type": "string" },
-        "source_bbox": { "$ref": "#/$defs/bbox" },
         "visual_description": { "type": "string" },
         "attached_decorations": { "type": "array", "items": { "type": "string" } },
         "center": { "enum": ["hollow", "filled", "transparent", "n/a"] },
@@ -125,6 +136,7 @@
         "render_pattern": {
           "enum": ["background_image", "nine_slice", "linear_clip", "radial_clip", "tiled_repeat", "overlay_stack"]
         },
+        "render_params": { "type": "object" },
         "resolution_policy": {
           "type": "object",
           "required": ["minimum_source_scale", "recommended_generation_scale", "target_px", "allow_downscale"],
@@ -154,17 +166,31 @@
           },
           "additionalProperties": false
         },
-        "layering": {
-          "type": "object",
-          "required": ["z_index", "anchor"],
-          "properties": {
-            "z_index": { "type": "integer" },
-            "anchor": { "enum": ["top_left"] }
-          },
-          "additionalProperties": false
-        },
         "states": { "type": "array", "items": { "type": "string" } },
         "companions": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "layering": {
+      "type": "object",
+      "required": ["z_index", "anchor"],
+      "properties": {
+        "z_index": { "type": "integer" },
+        "anchor": { "enum": ["top_left"] }
+      },
+      "additionalProperties": false
+    },
+    "instance": {
+      "type": "object",
+      "required": ["id", "uses", "source_bbox", "layering"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "uses": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "source_bbox": { "$ref": "#/$defs/bbox" },
+        "layering": { "$ref": "#/$defs/layering" },
+        "display_size": { "$ref": "#/$defs/size" },
+        "render_params_override": { "type": "object" },
+        "rendered": { "type": "boolean" }
       },
       "additionalProperties": false
     }

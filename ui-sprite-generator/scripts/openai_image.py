@@ -17,7 +17,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from data_io import DataIOError, load_data
+from data_io import DataIOError, load_data  # noqa: E402
 
 
 class ImageAPIError(Exception):

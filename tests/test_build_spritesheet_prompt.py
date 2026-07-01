@@ -20,8 +20,8 @@ def load_script_module():
 
 def minimal_spec():
     return {
-        "schema_version": "1.1",
-        "source_image": {"path": "input/effect.png", "width": 800, "height": 600},
+        "schema_version": "1.2",
+        "source_image": {"path": "effect.png", "width": 800, "height": 600},
         "style": {
             "description": "flat toy game UI",
             "ui_style": "rounded matte dark panels, clean gray buttons, amber badges",
@@ -42,7 +42,6 @@ def minimal_spec():
             {
                 "id": "flat_button",
                 "role": "icon_button",
-                "source_bbox": {"x": 40, "y": 50, "w": 120, "h": 48},
                 "visual_description": "clean gray rounded button with dark rim",
                 "attached_decorations": [],
                 "center": "filled",
@@ -60,14 +59,12 @@ def minimal_spec():
                     "allow_downscale": False,
                 },
                 "atlas_policy": {"group": "buttons", "can_share_sheet": True, "minimum_gutter": 32},
-                "layering": {"z_index": 10, "anchor": "top_left"},
                 "states": ["default"],
                 "companions": [],
             },
             {
                 "id": "covered_panel",
                 "role": "panel_frame",
-                "source_bbox": {"x": 180, "y": 50, "w": 280, "h": 180},
                 "visual_description": "dark rounded panel partly covered by a text badge in the source",
                 "attached_decorations": ["soft shadow"],
                 "center": "hollow",
@@ -85,14 +82,12 @@ def minimal_spec():
                     "allow_downscale": False,
                 },
                 "atlas_policy": {"group": "panels", "can_share_sheet": True, "minimum_gutter": 32},
-                "layering": {"z_index": 8, "anchor": "top_left"},
                 "states": ["default"],
                 "companions": [],
             },
             {
                 "id": "exp_bar_fill",
                 "role": "bar_fill_texture",
-                "source_bbox": {"x": 80, "y": 260, "w": 280, "h": 24},
                 "visual_description": "blue flat-to-soft gradient fill inside the experience bar",
                 "attached_decorations": [],
                 "center": "filled",
@@ -110,9 +105,34 @@ def minimal_spec():
                     "allow_downscale": False,
                 },
                 "atlas_policy": {"group": "bars", "can_share_sheet": True, "minimum_gutter": 24},
-                "layering": {"z_index": 7, "anchor": "top_left"},
                 "states": ["default"],
                 "companions": ["exp_bar_track"],
+            },
+        ],
+        "instances": [
+            {
+                "id": "flat_button_left",
+                "uses": "flat_button",
+                "source_bbox": {"x": 40, "y": 50, "w": 120, "h": 48},
+                "layering": {"z_index": 10, "anchor": "top_left"},
+            },
+            {
+                "id": "flat_button_right",
+                "uses": "flat_button",
+                "source_bbox": {"x": 180, "y": 50, "w": 120, "h": 48},
+                "layering": {"z_index": 10, "anchor": "top_left"},
+            },
+            {
+                "id": "covered_panel_main",
+                "uses": "covered_panel",
+                "source_bbox": {"x": 180, "y": 50, "w": 280, "h": 180},
+                "layering": {"z_index": 8, "anchor": "top_left"},
+            },
+            {
+                "id": "exp_bar_fill_main",
+                "uses": "exp_bar_fill",
+                "source_bbox": {"x": 80, "y": 260, "w": 280, "h": 24},
+                "layering": {"z_index": 7, "anchor": "top_left"},
             },
         ],
     }
@@ -154,6 +174,9 @@ class BuildSpritesheetPromptTests(unittest.TestCase):
             self.assertIn("outside and above", content)
             self.assertIn("label must not overlap", content)
             self.assertIn("flat_button", content)
+            self.assertIn("source_instances", content)
+            self.assertIn("flat_button_left", content)
+            self.assertIn("flat_button_right", content)
             self.assertIn("surface_policy: flat_fill", content)
             self.assertIn("do not add painterly texture", content)
             self.assertIn("max_generation_scale", content)
@@ -181,6 +204,7 @@ class BuildSpritesheetPromptTests(unittest.TestCase):
         self.assertIn("split this request into smaller sheets", prompt)
         self.assertIn("Do not increase target_px", prompt)
         self.assertIn("target_px: 240x96", prompt)
+        self.assertEqual(prompt.count("### 1. `flat_button`"), 1)
 
     def test_filters_components_by_group(self):
         module = load_script_module()

@@ -20,30 +20,47 @@ def load_script_module():
 
 def minimal_spec():
     return {
-        "schema_version": "1.1",
-        "source_image": {"path": "input/effect.png", "width": 800, "height": 600},
+        "schema_version": "1.2",
+        "source_image": {"path": "effect.png", "width": 800, "height": 600},
         "style": {"description": "verbose style text should not leak"},
         "components": [
             {
                 "id": "bar_fill",
                 "role": "progress fill",
-                "source_bbox": {"x": 30, "y": 500, "w": 300, "h": 30},
                 "visual_description": "long text should not leak",
                 "occlusion": {"reconstruction": "long text should not leak"},
                 "render_pattern": "linear_clip",
                 "render_params": {"axis": "x", "value": 1.0},
-                "layering": {"z_index": 20, "anchor": "top_left"},
                 "companions": ["bar_track"],
                 "resolution_policy": {"target_px": {"w": 600, "h": 60}},
             },
             {
                 "id": "bar_track",
                 "role": "track",
-                "source_bbox": {"x": 30, "y": 500, "w": 300, "h": 30},
                 "visual_description": "long text should not leak",
                 "render_pattern": "background_image",
-                "layering": {"z_index": 10, "anchor": "top_left"},
                 "companions": [],
+            },
+        ],
+        "instances": [
+            {
+                "id": "bar_fill_primary",
+                "uses": "bar_fill",
+                "source_bbox": {"x": 30, "y": 500, "w": 300, "h": 30},
+                "layering": {"z_index": 20, "anchor": "top_left"},
+            },
+            {
+                "id": "bar_fill_secondary",
+                "uses": "bar_fill",
+                "source_bbox": {"x": 360, "y": 500, "w": 300, "h": 30},
+                "layering": {"z_index": 20, "anchor": "top_left"},
+                "render_params_override": {"value": 0.5},
+            },
+            {
+                "id": "bar_track_primary",
+                "uses": "bar_track",
+                "source_bbox": {"x": 30, "y": 500, "w": 300, "h": 30},
+                "layering": {"z_index": 10, "anchor": "top_left"},
             },
         ],
     }
@@ -101,7 +118,8 @@ class BuildRenderManifestTests(unittest.TestCase):
         self.assertEqual(manifest["root_size"], {"w": 800, "h": 600})
         self.assertEqual(manifest["background"], {"file": "background_plate.png"})
         fill = manifest["sprites"][0]
-        self.assertEqual(fill["id"], "bar_fill")
+        self.assertEqual(fill["id"], "bar_fill_primary")
+        self.assertEqual(fill["component"], "bar_fill")
         self.assertEqual(fill["file"], "sprites/bar_fill.png")
         self.assertEqual(fill["x"], 30)
         self.assertEqual(fill["y"], 500)
@@ -111,6 +129,8 @@ class BuildRenderManifestTests(unittest.TestCase):
         self.assertEqual(fill["render_pattern"], "linear_clip")
         self.assertEqual(fill["render_params"], {"axis": "x", "value": 1.0})
         self.assertEqual(fill["companions"], ["bar_track"])
+        self.assertEqual(manifest["sprites"][1]["id"], "bar_fill_secondary")
+        self.assertEqual(manifest["sprites"][1]["render_params"], {"axis": "x", "value": 0.5})
         self.assertNotIn("visual_description", json.dumps(manifest))
         self.assertNotIn("resolution_policy", json.dumps(manifest))
         self.assertNotIn("bbox", fill)
@@ -200,9 +220,9 @@ class BuildRenderManifestTests(unittest.TestCase):
     def test_fails_with_clear_error_for_invalid_spec_render_fields(self):
         module = load_script_module()
         spec = minimal_spec()
-        spec["components"][0]["source_bbox"] = {"x": 30, "y": 500}
+        spec["instances"][0]["source_bbox"] = {"x": 30, "y": 500}
 
-        with self.assertRaisesRegex(module.RenderManifestError, "bar_fill: invalid render fields"):
+        with self.assertRaisesRegex(module.RenderManifestError, "bar_fill_primary: invalid render fields"):
             module.build_render_manifest(spec, minimal_atlas_map())
 
     def test_fails_when_sprite_asset_is_not_present_in_spec(self):
@@ -219,6 +239,22 @@ class BuildRenderManifestTests(unittest.TestCase):
 
         with self.assertRaisesRegex(module.RenderManifestError, "sprite asset not present in spec"):
             module.build_render_manifest(minimal_spec(), atlas_map)
+
+    def test_fails_when_instance_references_unknown_component(self):
+        module = load_script_module()
+        spec = minimal_spec()
+        spec["instances"][0]["uses"] = "unknown_component"
+
+        with self.assertRaisesRegex(module.RenderManifestError, "unknown component"):
+            module.build_render_manifest(spec, minimal_atlas_map())
+
+    def test_rejects_legacy_spec_version(self):
+        module = load_script_module()
+        spec = minimal_spec()
+        spec["schema_version"] = "1.1"
+
+        with self.assertRaisesRegex(module.RenderManifestError, "spec.schema_version must be 1.2"):
+            module.build_render_manifest(spec, minimal_atlas_map())
 
 
 if __name__ == "__main__":

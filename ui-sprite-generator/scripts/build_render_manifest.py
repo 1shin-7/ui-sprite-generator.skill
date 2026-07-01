@@ -9,8 +9,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from data_io import DataIOError, dump_data, load_data
-from atlas_maps import AtlasMapError, assets_by_id, load_legacy_atlas_map, load_per_atlas_maps
+from data_io import DataIOError, dump_data, load_data  # noqa: E402
+from atlas_maps import AtlasMapError, assets_by_id, load_legacy_atlas_map, load_per_atlas_maps  # noqa: E402
 
 
 class RenderManifestError(Exception):
@@ -27,45 +27,77 @@ def sprite_file(filename, sprites_dir):
     return f"{str(sprites_dir).replace(chr(92), '/')}/{filename}"
 
 
-def rendered_component_ids(spec):
-    ids = set()
+def require_spec_v12(spec):
+    if spec.get("schema_version") != "1.2":
+        raise RenderManifestError("spec.schema_version must be 1.2")
+
+
+def components_by_id(spec):
+    components = {}
     for component in spec.get("components", []):
         component_id = component.get("id")
-        if component_id and component.get("rendered") is not False:
-            ids.add(component_id)
-    return ids
+        if not component_id:
+            raise RenderManifestError("component missing id")
+        if component_id in components:
+            raise RenderManifestError(f"duplicate component id: {component_id}")
+        components[component_id] = component
+    return components
+
+
+def rendered_instances(spec):
+    return [instance for instance in spec.get("instances", []) if instance.get("rendered") is not False]
+
+
+def rendered_component_ids(spec):
+    return {instance.get("uses") for instance in rendered_instances(spec) if instance.get("uses")}
 
 
 def build_render_manifest(spec, atlas_assets, background="background_plate.png", sprites_dir="sprites"):
+    require_spec_v12(spec)
     source = spec.get("source_image", {})
     try:
         root_size = {"w": int(source["width"]), "h": int(source["height"])}
     except (KeyError, TypeError, ValueError) as exc:
         raise RenderManifestError("spec.source_image.width and height are required") from exc
 
+    components = components_by_id(spec)
     try:
         assets = assets_by_id(atlas_assets.get("sprites", []))
     except AtlasMapError as exc:
         raise RenderManifestError(str(exc)) from exc
-    expected_ids = rendered_component_ids(spec)
-    extra_ids = sorted(set(assets) - expected_ids)
+    extra_ids = sorted(set(assets) - set(components))
     if extra_ids:
         raise RenderManifestError(f"sprite asset not present in spec: {extra_ids[0]}")
 
+    for instance in rendered_instances(spec):
+        instance_id = instance.get("id")
+        component_id = instance.get("uses")
+        if component_id not in components:
+            raise RenderManifestError(f"{instance_id}: unknown component: {component_id}")
+
+    used_component_ids = rendered_component_ids(spec)
     render_sprites = []
-    for component in spec.get("components", []):
-        component_id = component.get("id")
-        if component.get("rendered") is False:
-            continue
+    for component_id in used_component_ids:
         asset = assets.get(component_id)
         if not asset:
             raise RenderManifestError(f"missing sprite asset for component: {component_id}")
+
+    for instance in rendered_instances(spec):
+        instance_id = instance.get("id")
+        component_id = instance.get("uses")
+        component = components.get(component_id)
+        if not component:
+            raise RenderManifestError(f"{instance_id}: unknown component: {component_id}")
+        asset = assets.get(component_id)
         try:
-            bbox = component.get("source_bbox", {})
-            layering = component.get("layering", {})
-            display_size = component.get("display_size") or size_from_bbox(bbox)
+            bbox = instance.get("source_bbox", {})
+            layering = instance.get("layering", {})
+            display_size = instance.get("display_size") or size_from_bbox(bbox)
+            render_params = dict(component.get("render_params", {}))
+            render_params.update(instance.get("render_params_override", {}))
             node = {
-                "id": component_id,
+                "id": instance_id,
+                "component": component_id,
                 "file": sprite_file(asset["filename"], sprites_dir),
                 "x": int(bbox["x"]),
                 "y": int(bbox["y"]),
@@ -73,10 +105,10 @@ def build_render_manifest(spec, atlas_assets, background="background_plate.png",
                 "h": int(display_size["h"]),
                 "z_index": int(layering["z_index"]),
                 "render_pattern": component["render_pattern"],
-                "render_params": component.get("render_params", {}),
+                "render_params": render_params,
             }
         except (KeyError, TypeError, ValueError) as exc:
-            raise RenderManifestError(f"{component_id}: invalid render fields") from exc
+            raise RenderManifestError(f"{instance_id}: invalid render fields") from exc
         companions = component.get("companions", [])
         if companions:
             node["companions"] = companions

@@ -187,12 +187,30 @@ class SkillDocTests(unittest.TestCase):
 
         self.assertIn("source_bbox values may overlap", content)
         self.assertIn("do not shift", content)
+        self.assertIn("instances[]", content)
         self.assertIn("occlusion", content)
         self.assertIn("surface_policy", content)
+        self.assertIn('"1.2"', schema)
+        self.assertIn('"instances"', schema)
         self.assertIn("ui_style", schema)
         self.assertIn("background_style", schema)
         self.assertIn("surface_policy", schema)
         self.assertIn("occlusion", schema)
+
+    def test_spec_prompt_requires_conservative_exact_component_reuse(self):
+        extract_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "01_extract_spec.md").read_text(
+            encoding="utf-8"
+        ).lower()
+        verify_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "02_verify_spec.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("merge only exact reusable sprite definitions", extract_prompt)
+        self.assertIn("do not merge near-duplicates", extract_prompt)
+        self.assertIn("when uncertain", extract_prompt)
+        self.assertIn("multiple lightweight `instances[]` entries", extract_prompt)
+        self.assertIn("merge component definitions only when they are visually identical", verify_prompt)
+        self.assertIn("when uncertain, keep separate", verify_prompt)
 
     def test_resolution_and_bar_contracts_prevent_overgeneration(self):
         spec_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "01_extract_spec.md").read_text(
@@ -229,6 +247,7 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("spec.yaml", skill)
         self.assertIn("render.yaml", skill)
         self.assertIn("spec.yaml is authoritative", skill)
+        self.assertIn("`instances[]` are authoritative", skill)
         self.assertIn("per-atlas crop contract", skill)
         self.assertIn("build_render_manifest.py", skill)
         self.assertIn("do not infer, copy, or emit final layout fields", atlas_prompt)

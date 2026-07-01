@@ -19,7 +19,7 @@ The attached effect image is the source style reference. Match its material, col
 - Do not take a token-saving shortcut such as deterministic slicing, "cut reusable UI blocks", or absolute-positioned HTML reconstruction from crops.
 - Each atlas entry must be a newly redrawn isolated sprite that preserves the source UI style.
 - Complex UI is not rectangular cutting: border decoration, corner ornaments, bevels, drop shadows, glows, transparent holes, and rich material texture must be reconstructed around the component's actual shape.
-- The source `source_bbox` is only a size and placement reference. It is not permission to cut that rectangle out of the effect image.
+- Source instance bboxes are only size and placement references. They are not permission to cut those rectangles out of the effect image.
 - If an available tool cannot redraw isolated sprites, stop and ask for an image-generation service instead of silently falling back to crop-based output.
 
 ## Atlas Rules
@@ -50,11 +50,11 @@ The attached effect image is the source style reference. Match its material, col
 
 ## Component Expansion Template
 
-For each component from `spec.components[]`, expand the generation brief before creating the atlas:
+For each reusable component from `spec.components[]`, expand the generation brief before creating the atlas:
 
 ```text
 [N] {id} ({role})
-  Source bbox : {source_bbox} for size reference only; do not crop it.
+  Source instances : {source_instances} for size reference only; do not crop them.
   Visual      : {visual_description}
   Decorations : {attached_decorations}
   Center      : {center}
@@ -77,4 +77,4 @@ atlas/atlas_buttons_01.png
 atlas/atlas_bars_01.png
 ```
 
-All visible UI components from `spec.components[]` must appear in exactly one formal atlas unless the component intentionally uses companions or states.
+All reusable UI components from `spec.components[]` must appear in exactly one formal atlas unless the component intentionally uses companions or states. Repeated placements from `spec.instances[]` must not duplicate atlas art.
