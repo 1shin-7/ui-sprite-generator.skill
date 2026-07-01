@@ -18,7 +18,8 @@ python scripts/build_atlas_prompt.py \
   --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml \
   --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md \
   --component-group buttons \
-  --atlas-bg solid-key
+  --atlas-bg solid-key \
+  --layout-strategy maxrects
 ```
 
 Transparent atlas, only when explicitly requested and the image service supports real alpha:
@@ -28,8 +29,11 @@ python scripts/build_atlas_prompt.py \
   --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml \
   --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md \
   --component-group buttons \
-  --atlas-bg transparent
+  --atlas-bg transparent \
+  --layout-strategy maxrects
 ```
+
+`--layout-strategy maxrects` is the default. It embeds deterministic atlas placement guidance in the generated prompt so the image model does not invent packing or crowd components together. Use `--layout-strategy area-budget` only as a legacy fallback when you deliberately want the old fill-budget warning without explicit placements.
 
 ## Core Rules
 

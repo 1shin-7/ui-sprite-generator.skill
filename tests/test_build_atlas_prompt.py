@@ -160,6 +160,10 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertIn("--component-group", result.stdout)
         self.assertIn("--component-id", result.stdout)
         self.assertIn("--canvas-size", result.stdout)
+        self.assertIn("--layout-strategy", result.stdout)
+        self.assertIn("--layout-padding", result.stdout)
+        self.assertIn("--layout-scale", result.stdout)
+        self.assertIn("--oversize", result.stdout)
 
     def test_builds_labeled_solid_key_atlas_prompt_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -190,6 +194,10 @@ class BuildAtlasPromptTests(unittest.TestCase):
             self.assertIn("do not add painterly texture", content)
             self.assertIn("max_generation_scale", content)
             self.assertIn("do not increase target_px", content)
+            self.assertIn("maxrects layout guidance", content)
+            self.assertIn("layout_strategy: maxrects", content)
+            self.assertIn("atlas_index=0", content)
+            self.assertIn("content_w=240", content)
             self.assertIn("covered_panel", content)
             self.assertIn("redraw the full unobstructed", content)
             self.assertIn("exp_bar_fill", content)
@@ -213,6 +221,14 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertEqual(local_spec["atlas_context"]["canvas_size"], "1024x1536")
         self.assertEqual(local_spec["atlas_context"]["max_fill_ratio"], 0.5)
         self.assertFalse(local_spec["atlas_context"]["over_budget"])
+        self.assertEqual(local_spec["atlas_context"]["layout_strategy"], "maxrects")
+        self.assertIn("layout", local_spec["atlas_context"])
+        self.assertEqual(local_spec["atlas_context"]["layout"]["padding"], 24)
+        self.assertEqual(local_spec["atlas_context"]["layout"]["requested_scale"], 1.0)
+        self.assertEqual(
+            local_spec["atlas_context"]["layout"]["atlases"][0]["placements"][0]["id"],
+            "flat_button",
+        )
         self.assertEqual([component["id"] for component in local_spec["components"]], ["flat_button"])
         self.assertEqual(
             [instance["id"] for instance in local_spec["instances"]],
@@ -234,13 +250,36 @@ class BuildAtlasPromptTests(unittest.TestCase):
 
     def test_overpacked_atlas_warns_to_split_without_changing_target_px(self):
         module = load_script_module()
-        prompt = module.build_prompt(minimal_spec(), canvas_size="256x256", max_fill_ratio=0.65)
+        prompt = module.build_prompt(
+            minimal_spec(),
+            canvas_size="256x256",
+            max_fill_ratio=0.65,
+            layout_strategy="area-budget",
+        )
 
         self.assertIn("Selected components exceed the fill budget", prompt)
         self.assertIn("split this request into smaller atlas sheets", prompt)
         self.assertIn("Do not increase target_px", prompt)
         self.assertIn("target_px: 240x96", prompt)
         self.assertEqual(prompt.count("### 1. `flat_button`"), 1)
+
+    def test_maxrects_layout_clamps_oversized_default_without_area_budget_warning(self):
+        module = load_script_module()
+        prompt = module.build_prompt(
+            minimal_spec(),
+            component_group="panels",
+            canvas_size="256x256",
+            layout_padding=8,
+            layout_scale=2.0,
+        )
+        local_spec = extract_local_atlas_spec(prompt)
+        placement = local_spec["atlas_context"]["layout"]["atlases"][0]["placements"][0]
+
+        self.assertIn("MaxRects clamped", prompt)
+        self.assertTrue(placement["clamped"])
+        self.assertEqual(placement["requested_scale"], 2.0)
+        self.assertLess(placement["effective_scale"], 2.0)
+        self.assertNotIn("Selected components exceed the fill budget", prompt)
 
     def test_filters_components_by_group(self):
         module = load_script_module()

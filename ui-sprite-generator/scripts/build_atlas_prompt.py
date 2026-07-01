@@ -10,6 +10,12 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from data_io import DataIOError, load_data  # noqa: E402
+from plan_atlas_layout import (  # noqa: E402
+    LayoutError,
+    SpriteItem,
+    layout_to_data,
+    pack_groups_maxrects,
+)
 
 
 class PromptBuildError(Exception):
@@ -216,6 +222,72 @@ def packing_guidance(selected_area, fill_limit, over_budget):
     return "\n".join(lines)
 
 
+def sprite_items_from_components(components):
+    items = []
+    for component in components:
+        width, height = target_px(component)
+        items.append(SpriteItem(component["id"], width, height, component.get("atlas_policy", {}).get("group")))
+    return items
+
+
+def maxrects_layout(components, canvas_size, padding, scale, oversize):
+    try:
+        atlas_size = parse_size(canvas_size)
+        groups = pack_groups_maxrects(
+            sprite_items_from_components(components),
+            atlas_size,
+            padding=padding,
+            scale=scale,
+            oversize=oversize,
+        )
+    except LayoutError as exc:
+        raise PromptBuildError(str(exc)) from exc
+    return layout_to_data(groups, atlas_size, padding=padding, scale=scale, oversize=oversize)
+
+
+def maxrects_layout_guidance(layout):
+    clamped = [
+        placement
+        for atlas in layout["atlases"]
+        for placement in atlas["placements"]
+        if placement["clamped"]
+    ]
+    lines = [
+        "## MaxRects Layout Guidance",
+        "",
+        "- layout_strategy: maxrects",
+        f"- atlas_size: {layout['atlas_size'][0]}x{layout['atlas_size'][1]}",
+        f"- atlas_count: {len(layout['atlases'])}",
+        f"- padding: {layout['padding']}",
+        f"- requested_scale: {layout['requested_scale']}",
+        f"- oversize: {layout['oversize']}",
+    ]
+    if clamped:
+        lines.append(f"- MaxRects clamped {len(clamped)} oversized sprite(s) to fit the selected atlas canvas.")
+    lines.extend(
+        [
+            "- Follow these placements instead of inventing a new packing plan.",
+            "- Keep labels outside each planned cell and keep sprite art inside the content rectangle.",
+            "",
+        ]
+    )
+    for atlas in layout["atlases"]:
+        lines.append(f"### Atlas {atlas['index']}")
+        lines.append("")
+        for placement in atlas["placements"]:
+            lines.append(
+                "- "
+                f"{placement['id']}: atlas_index={placement['atlas_index']}, "
+                f"cell=(x={placement['x']}, y={placement['y']}, w={placement['w']}, h={placement['h']}), "
+                f"content=(x={placement['content_x']}, y={placement['content_y']}, "
+                f"content_w={placement['content_w']}, content_h={placement['content_h']}), "
+                f"target_px={placement['target_w']}x{placement['target_h']}, "
+                f"effective_scale={placement['effective_scale']}, clamped={str(placement['clamped']).lower()}"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
 def style_contract(spec):
     style = spec.get("style", {})
     return {
@@ -329,6 +401,10 @@ def build_prompt(
     component_ids=None,
     canvas_size="1536x1024",
     max_fill_ratio=0.65,
+    layout_strategy="maxrects",
+    layout_padding=24,
+    layout_scale=1.0,
+    oversize="clamp",
     include_raw_json=True,
 ):
     components = select_components(spec, component_group=component_group, component_ids=component_ids)
@@ -336,6 +412,11 @@ def build_prompt(
     selected_area, fill_limit, over_budget = fill_budget(components, canvas_size, max_fill_ratio)
     style = style_contract(spec)
     instances = selected_instances(spec, components)
+    layout = None
+    if layout_strategy == "maxrects":
+        layout = maxrects_layout(components, canvas_size, layout_padding, layout_scale, oversize)
+    elif layout_strategy != "area-budget":
+        raise PromptBuildError("layout_strategy must be 'maxrects' or 'area-budget'")
     atlas_context = {
         "atlas_bg": atlas_bg,
         "canvas_size": canvas_size,
@@ -343,7 +424,10 @@ def build_prompt(
         "selected_target_area": selected_area,
         "fill_budget_area": fill_limit,
         "over_budget": over_budget,
+        "layout_strategy": layout_strategy,
     }
+    if layout is not None:
+        atlas_context["layout"] = layout
     sections = [
         CANONICAL_PROMPT.rstrip(),
         "",
@@ -352,10 +436,11 @@ def build_prompt(
         f"- atlas_bg: {atlas_bg}",
         f"- canvas_size: {canvas_size}",
         f"- max_fill_ratio: {max_fill_ratio}",
+        f"- layout_strategy: {layout_strategy}",
         "- canvas size is a generation preference, not the source image dimensions.",
         background_contract(atlas_bg),
         "",
-        packing_guidance(selected_area, fill_limit, over_budget),
+        maxrects_layout_guidance(layout) if layout is not None else packing_guidance(selected_area, fill_limit, over_budget),
         component_contract_markdown(components, source_instances),
     ]
     if include_raw_json:
@@ -372,6 +457,10 @@ def parse_args(argv=None):
     parser.add_argument("--component-id", action="append", help="Only include this component id; repeat as needed")
     parser.add_argument("--canvas-size", default="1536x1024", help="Preferred generation canvas size")
     parser.add_argument("--max-fill-ratio", type=float, default=0.65, help="Maximum selected target area / canvas area")
+    parser.add_argument("--layout-strategy", choices=["maxrects", "area-budget"], default="maxrects")
+    parser.add_argument("--layout-padding", type=int, default=24, help="MaxRects cell padding around each sprite")
+    parser.add_argument("--layout-scale", type=float, default=1.0, help="MaxRects target_px scale before packing")
+    parser.add_argument("--oversize", choices=["clamp", "fail"], default="clamp")
     parser.add_argument("--include-raw-json", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args(argv)
 
@@ -381,6 +470,10 @@ def main(argv=None):
     try:
         if args.max_fill_ratio <= 0:
             raise PromptBuildError("--max-fill-ratio must be > 0")
+        if args.layout_padding < 0:
+            raise PromptBuildError("--layout-padding must be >= 0")
+        if args.layout_scale <= 0:
+            raise PromptBuildError("--layout-scale must be > 0")
         spec = load_spec(args.spec)
         prompt = build_prompt(
             spec,
@@ -389,6 +482,10 @@ def main(argv=None):
             component_ids=args.component_id,
             canvas_size=args.canvas_size,
             max_fill_ratio=args.max_fill_ratio,
+            layout_strategy=args.layout_strategy,
+            layout_padding=args.layout_padding,
+            layout_scale=args.layout_scale,
+            oversize=args.oversize,
             include_raw_json=args.include_raw_json,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
