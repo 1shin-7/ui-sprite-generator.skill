@@ -2,9 +2,14 @@
 """Build the canonical Markdown prompt for labeled UI spritesheet generation."""
 
 import argparse
-import json
 import sys
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from data_io import DataIOError, load_data
 
 
 class PromptBuildError(Exception):
@@ -13,7 +18,7 @@ class PromptBuildError(Exception):
 
 CANONICAL_PROMPT = """# UI Spritesheet Generation Prompt
 
-You are a game UI sprite sheet artist. Generate a clean, observable UI spritesheet from the components in `spec.json`.
+You are a game UI sprite sheet artist. Generate a clean, observable UI spritesheet from the selected spec components.
 
 ## Visual Reference
 
@@ -60,11 +65,9 @@ spritesheet/spritesheet_panels_01.png
 
 def load_spec(path):
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise PromptBuildError(f"spec file not found: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise PromptBuildError(f"spec file is not valid JSON: {path}") from exc
+        return load_data(path)
+    except DataIOError as exc:
+        raise PromptBuildError(str(exc)) from exc
 
 
 def parse_size(size):
@@ -211,11 +214,17 @@ def raw_json_markdown(style, components):
             "## Raw Selected Spec JSON",
             "",
             "```json",
-            json.dumps(data, ensure_ascii=False, indent=2),
+            dump_data_to_string(data),
             "```",
             "",
         ]
     )
+
+
+def dump_data_to_string(data):
+    import json
+
+    return json.dumps(data, ensure_ascii=False, indent=2)
 
 
 def build_prompt(
@@ -251,7 +260,7 @@ def build_prompt(
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Build the canonical Markdown prompt for UI spritesheet generation.")
-    parser.add_argument("--spec", required=True, type=Path, help="Path to spec.json")
+    parser.add_argument("--spec", required=True, type=Path, help="Path to spec.yaml or spec.json")
     parser.add_argument("--output", required=True, type=Path, help="Output Markdown prompt path")
     parser.add_argument("--sheet-mode", choices=["solid-key", "transparent"], default="solid-key")
     parser.add_argument("--component-group", help="Only include components with this atlas_policy.group")

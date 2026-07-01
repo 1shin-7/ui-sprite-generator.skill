@@ -170,6 +170,42 @@ class UiSliceTests(unittest.TestCase):
             colors = [output.getpixel((x, y)) for y in range(output.height) for x in range(output.width)]
             self.assertNotIn((120, 120, 120, 255), colors)
 
+    def test_accepts_yaml_atlas_map_when_pyyaml_is_available(self):
+        try:
+            import yaml  # noqa: F401
+        except ImportError:
+            self.skipTest("PyYAML is not installed")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas = work / "atlas.png"
+            Image.new("RGBA", (16, 16), (40, 50, 60, 255)).save(atlas)
+            atlas_map = work / "atlas_map.yaml"
+            atlas_map.write_text(
+                "\n".join(
+                    [
+                        "schema_version: '1.0'",
+                        "atlases:",
+                        f"  - id: sheet\n    file: {atlas.as_posix()}",
+                        "sprites:",
+                        "  - id: item",
+                        "    atlas: sheet",
+                        "    filename: item.png",
+                        "    bbox: {x: 0, y: 0, w: 16, h: 16}",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--map", str(atlas_map), "--out", str(work / "sprites")],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((work / "sprites" / "item.png").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,6 +13,12 @@ from pathlib import Path
 
 from PIL import Image
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from data_io import DataIOError, load_data
+
 
 class ImageAPIError(Exception):
     pass
@@ -79,13 +85,10 @@ def read_prompt(path):
 def load_spec(path):
     if not path:
         return None
-    spec_path = Path(path)
     try:
-        return json.loads(spec_path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise ImageAPIError(f"spec file not found: {spec_path}") from exc
-    except json.JSONDecodeError as exc:
-        raise ImageAPIError(f"spec file is not valid JSON: {spec_path}") from exc
+        return load_data(path)
+    except DataIOError as exc:
+        raise ImageAPIError(str(exc)) from exc
 
 
 def source_dimensions(spec):
@@ -337,7 +340,7 @@ def parse_args(argv=None):
     parser.add_argument("--mode", choices=["auto", "generations", "edits"], default="auto")
     parser.add_argument("--prompt-file", required=True, type=Path, help="Prompt text file")
     parser.add_argument("--output", required=True, type=Path, help="Output image path")
-    parser.add_argument("--spec", type=Path, help="spec.json used for runtime auto sizing and background normalization")
+    parser.add_argument("--spec", type=Path, help="spec.yaml or spec.json used for runtime auto sizing and background normalization")
     parser.add_argument("--purpose", choices=["generic", "background", "atlas"], default="generic")
     parser.add_argument(
         "--input-image",

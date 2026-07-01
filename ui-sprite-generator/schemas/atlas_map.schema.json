@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "UI Sprite Atlas Map",
   "type": "object",
-  "required": ["schema_version", "root_size", "atlases", "sprites"],
+  "required": ["schema_version", "atlases", "sprites"],
   "properties": {
     "schema_version": { "const": "1.0" },
     "root_size": {
@@ -32,29 +32,12 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": [
-          "id",
-          "atlas",
-          "filename",
-          "bbox",
-          "display_size",
-          "source_bbox",
-          "z_index",
-          "render_pattern",
-          "render_params"
-        ],
+        "required": ["id", "atlas", "filename", "bbox"],
         "properties": {
           "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
           "atlas": { "type": "string" },
           "filename": { "type": "string", "pattern": "^[a-zA-Z0-9_.\\-]+\\.png$" },
-          "bbox": { "$ref": "#/$defs/bbox" },
-          "display_size": { "$ref": "#/$defs/size" },
-          "source_bbox": { "$ref": "#/$defs/bbox" },
-          "z_index": { "type": "integer" },
-          "render_pattern": {
-            "enum": ["background_image", "nine_slice", "linear_clip", "radial_clip", "tiled_repeat", "overlay_stack"]
-          },
-          "render_params": { "type": "object" }
+          "bbox": { "$ref": "#/$defs/bbox" }
         },
         "additionalProperties": false
       }

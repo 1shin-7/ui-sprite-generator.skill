@@ -176,7 +176,8 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("canvas size is a generation preference", spritesheet_prompt)
         self.assertIn("not the source image dimensions", spritesheet_prompt)
         self.assertNotIn("image_size_plan.json", skill)
-        self.assertIn("do not promote `sheet_plan.json`", skill)
+        self.assertNotIn("image_size_plan.yaml", skill)
+        self.assertIn("do not promote `sheet_plan.yaml`", skill)
 
     def test_spec_prompt_allows_overlapping_source_bboxes_and_occlusion_reconstruction(self):
         content = (ROOT / "ui-sprite-generator" / "prompts" / "01_extract_spec.md").read_text(
@@ -215,6 +216,27 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("full rectangular fill texture", sheet_prompt)
         self.assertIn("overgenerated_detail", qa_prompt)
         self.assertIn("non_rectangular_bar_fill", qa_prompt)
+
+    def test_yaml_render_manifest_contracts_are_documented(self):
+        skill = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+        atlas_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "04_extract_atlas_map.md").read_text(
+            encoding="utf-8"
+        ).lower()
+        html_prompt = (ROOT / "ui-sprite-generator" / "prompts" / "05_generate_playwright_html.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("spec.yaml", skill)
+        self.assertIn("atlas_map.yaml", skill)
+        self.assertIn("render.yaml", skill)
+        self.assertIn("spec.yaml is authoritative", skill)
+        self.assertIn("asset/crop map", skill)
+        self.assertIn("build_render_manifest.py", skill)
+        self.assertIn("do not infer, copy, or emit final layout fields", atlas_prompt)
+        self.assertIn("source_bbox", atlas_prompt)
+        self.assertIn("z_index", atlas_prompt)
+        self.assertIn("render.yaml", html_prompt)
+        self.assertIn("render.root_size", html_prompt)
 
 
 if __name__ == "__main__":

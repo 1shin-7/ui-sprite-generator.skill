@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Slice UI sprite atlas images according to atlas_map.json."""
+"""Slice UI sprite atlas images according to atlas_map.yaml/json."""
 
 import argparse
-import json
 import re
 import sys
 from collections import deque
@@ -12,6 +11,12 @@ try:
     from PIL import Image
 except ImportError:
     sys.exit("ERROR: Pillow not installed. Run: pip install Pillow")
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from data_io import DataIOError, load_data
 
 
 SAFE_FILENAME = re.compile(r"^[A-Za-z0-9_.-]+\.png$")
@@ -23,11 +28,9 @@ class SliceError(Exception):
 
 def load_json(path):
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError as exc:
-        raise SliceError(f"map file not found: {path}") from exc
-    except json.JSONDecodeError as exc:
-        raise SliceError(f"invalid JSON in map file: {exc}") from exc
+        return load_data(path)
+    except DataIOError as exc:
+        raise SliceError(str(exc)) from exc
 
 
 def resolve_path(base_dir, value):
@@ -149,7 +152,7 @@ def slice_atlases(map_path, out_dir, bg_policy, bg_color_arg, bg_tolerance, blee
     seen_files = set()
     sprites = atlas_map.get("sprites", [])
     if not sprites:
-        raise SliceError("atlas_map.json has no sprites")
+        raise SliceError("atlas map has no sprites")
 
     for sprite in sprites:
         sprite_id = sprite.get("id")
@@ -182,8 +185,8 @@ def slice_atlases(map_path, out_dir, bg_policy, bg_color_arg, bg_tolerance, blee
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Slice UI sprite atlases from atlas_map.json")
-    parser.add_argument("--map", required=True, type=Path, help="Path to atlas_map.json")
+    parser = argparse.ArgumentParser(description="Slice UI sprite atlases from atlas_map.yaml or atlas_map.json")
+    parser.add_argument("--map", required=True, type=Path, help="Path to atlas_map.yaml or atlas_map.json")
     parser.add_argument("--out", required=True, type=Path, help="Output directory for sliced sprites")
     parser.add_argument("--bg-policy", choices=["keep", "transparentize-border"], default="keep")
     parser.add_argument("--bg-color", default="auto", help="'auto' or #rrggbb for transparentize-border")

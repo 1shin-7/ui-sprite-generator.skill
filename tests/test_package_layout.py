@@ -17,6 +17,8 @@ class PackageLayoutTests(unittest.TestCase):
         self.assertTrue((package / "prompts" / "03_generate_spritesheet.md").is_file())
         self.assertTrue((package / "prompts" / "04_verify_spritesheet.md").is_file())
         self.assertTrue((package / "scripts" / "build_spritesheet_prompt.py").is_file())
+        self.assertTrue((package / "scripts" / "build_render_manifest.py").is_file())
+        self.assertTrue((package / "scripts" / "data_io.py").is_file())
 
 
 if __name__ == "__main__":

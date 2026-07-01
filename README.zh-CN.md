@@ -27,7 +27,7 @@
 ## Features
 
 - 将 UI 效果图拆成语义资产，而不是直接裁出带背景污染的矩形块。
-- 生成 `spec.json`：记录 source bbox、组件角色、遮挡关系、surface policy、分辨率策略和渲染模式。
+- 生成 `spec.yaml`：记录 source bbox、组件角色、遮挡关系、surface policy、分辨率策略和渲染模式。
 - 生成 `background_plate.png`：移除前景 UI，并尽可能重建被 UI 遮挡的背景区域。
 - 默认使用 labeled spritesheet：每个 sprite 外部带 id label，便于人工和模型在切图前做 QA。
 - `scripts/ui_slice.py` 只做机械切图和边缘背景清理，不负责猜测、确认或修正坐标。
@@ -46,12 +46,13 @@ pnpx skills add https://github.com/1shin-7/ui-sprite-generator.skill --skill ui-
 
 工作流按职责拆分：
 
-1. `spec.json` 描述效果图里的 UI 语义。
+1. `spec.yaml` 描述效果图里的 UI 语义。
 2. `background_plate.png` 还原 UI 背后的干净背景。
 3. Labeled spritesheet 重新绘制隔离 UI 组件，并把 id label 放在 sprite 外部。
-4. `atlas_map.json` 记录 QA 后的 crop 坐标、输出文件名、显示尺寸和渲染参数。
-5. `ui_slice.py` 只按坐标切图，不修图、不猜图、不生成报告。
-6. `html/index.html` 用背景板和绝对定位 sprite 重建场景，供 Playwright 截图。
+4. `atlas_map.yaml` 记录 QA 后的 crop 坐标和输出文件名。
+5. `render.yaml` 合并 spec 中的布局和 atlas map 中的 sprite 文件名。
+6. `ui_slice.py` 只按坐标切图，不修图、不猜图、不生成报告。
+7. `html/index.html` 用背景板和绝对定位 sprite 重建场景，供 Playwright 截图。
 
 默认路线是 labeled spritesheet，而不是直接生成正式 atlas。原因很简单：label 能让失败变得可观察。比如装饰缺失、flat fill 被污染、遮挡物混入、label 压进 sprite、模型脑补过多细节、进度条填充向内坍缩，这些问题都应该在切图前暴露。
 

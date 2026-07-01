@@ -1,6 +1,6 @@
 # Prompt 02 - Generate Background Plate
 
-**Inputs:** `input/effect.png`, `spec.json`  
+**Inputs:** `input/effect.png`, `spec.yaml`
 **Output:** `background_plate.png` in the run directory  
 
 Create a complete background plate for the full source canvas.

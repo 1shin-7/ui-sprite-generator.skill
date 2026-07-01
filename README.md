@@ -25,7 +25,7 @@
 ## Features
 
 - Reconstructs UI mockups as semantic assets instead of rectangular screenshot crops.
-- Generates a `spec.json` contract for source bboxes, component roles, occlusion, surfaces, resolution policy, and render patterns.
+- Generates a `spec.yaml` contract for source bboxes, component roles, occlusion, surfaces, resolution policy, and render patterns.
 - Restores `background_plate.png` by removing foreground UI and regenerating occluded background regions.
 - Uses labeled spritesheets by default so agents and humans can verify component identity before slicing.
 - Keeps atlas slicing mechanical through `scripts/ui_slice.py`; no hidden coordinate correction in the slicer.
@@ -44,12 +44,13 @@ pnpx skills add https://github.com/1shin-7/ui-sprite-generator.skill --skill ui-
 
 The workflow is intentionally split into contracts and mechanical steps:
 
-1. `spec.json` describes what the mockup means.
+1. `spec.yaml` describes what the mockup means.
 2. `background_plate.png` restores the world behind the UI.
 3. Labeled spritesheets regenerate clean UI components with visible external ids.
-4. `atlas_map.json` records crop coordinates after visual QA.
-5. `ui_slice.py` slices sprites without inventing or correcting art.
-6. `html/index.html` reconstructs the scene for Playwright screenshots.
+4. `atlas_map.yaml` records crop coordinates after visual QA.
+5. `render.yaml` combines spec-sourced layout with atlas-sourced sprite filenames.
+6. `ui_slice.py` slices sprites without inventing or correcting art.
+7. `html/index.html` reconstructs the scene for Playwright screenshots.
 
 The default is labeled spritesheets, not a direct formal atlas. Labels make failures observable: missing decorations, polluted flat fills, occlusion contamination, label overlap, overgenerated detail, and non-rectangular bar fills can be caught before final slicing.
 
