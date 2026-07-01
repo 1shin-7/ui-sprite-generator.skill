@@ -69,7 +69,7 @@ def minimal_spec():
 def minimal_atlas_map():
     return {
         "schema_version": "1.0",
-        "atlases": [{"id": "sheet", "file": "spritesheet/sheet.png"}],
+        "atlases": [{"id": "sheet", "file": "atlas/sheet.png"}],
         "sprites": [
             {
                 "id": "bar_fill",

@@ -63,7 +63,7 @@ Repeated UI elements are deduplicated only when they are exactly identical and i
 Run focused tests:
 
 ```bash
-python -B -m unittest tests.test_build_spritesheet_prompt
+python -B -m unittest tests.test_build_atlas_prompt
 python -B -m unittest tests.test_openai_image_script
 python -B -m unittest tests.test_ui_slice
 python -B -m unittest tests.test_build_render_manifest
@@ -72,8 +72,8 @@ python -B -m unittest tests.test_build_render_manifest
 Run the full local suite:
 
 ```bash
-python -B -m unittest tests.test_skill_docs tests.test_build_spritesheet_prompt tests.test_build_atlas_prompt tests.test_openai_image_script tests.test_ui_slice tests.test_package_layout tests.test_data_io tests.test_build_render_manifest
-python -m py_compile ui-sprite-generator/scripts/openai_image.py ui-sprite-generator/scripts/build_atlas_prompt.py ui-sprite-generator/scripts/build_spritesheet_prompt.py ui-sprite-generator/scripts/ui_slice.py ui-sprite-generator/scripts/data_io.py ui-sprite-generator/scripts/atlas_maps.py ui-sprite-generator/scripts/build_render_manifest.py
+python -B -m unittest tests.test_skill_docs tests.test_build_atlas_prompt tests.test_openai_image_script tests.test_ui_slice tests.test_package_layout tests.test_data_io tests.test_build_render_manifest
+python -m py_compile ui-sprite-generator/scripts/openai_image.py ui-sprite-generator/scripts/build_atlas_prompt.py ui-sprite-generator/scripts/ui_slice.py ui-sprite-generator/scripts/data_io.py ui-sprite-generator/scripts/atlas_maps.py ui-sprite-generator/scripts/build_render_manifest.py
 git diff --check
 ```
 

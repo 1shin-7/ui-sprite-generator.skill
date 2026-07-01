@@ -21,6 +21,8 @@ Scan the effect image top-to-bottom and left-to-right. For every visible UI chro
 For each component definition:
 
 - Check whether its role fully captures the rendering behavior.
+- Check that the component contract describes regenerated art, not source-pixel extraction. Replace phrases such as "extracted from source pixels", "cropped", "copied", "local split", or "screenshot crop" with redraw/reconstruction instructions.
+- Check that `states` contains real UI visual states, never `source`, `cropped`, or `extracted`.
 - If none of the known roles fits, use `custom_{descriptive_name}` and keep a valid render pattern.
 - If it has a dynamic or rich fill, split it into a companion fill sprite such as `bar_fill_texture`.
 - If it tiles or repeats, set the render pattern to `tiled_repeat`.
@@ -34,6 +36,6 @@ For each component definition:
 - For clean solid-color UI, set `surface_policy` to `flat_fill`; do not describe random texture.
 - For textured material, set `surface_policy` to `textured_fill`.
 - For hollow or transparent regions, set `surface_policy` to `hollow` or `transparent`.
-- If a component is covered by text, another UI element, badge, popover, or floating effect, mark `occlusion.status` as `partially_occluded` and describe how the spritesheet should redraw the complete unobstructed sprite.
+- If a component is covered by text, another UI element, badge, popover, or floating effect, mark `occlusion.status` as `partially_occluded` and describe how the atlas generation should redraw the complete unobstructed sprite.
 
 Output only valid YAML.

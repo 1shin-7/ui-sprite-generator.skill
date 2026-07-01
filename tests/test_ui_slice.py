@@ -190,10 +190,10 @@ class UiSliceTests(unittest.TestCase):
             self.assertEqual(output.getpixel((0, 0))[3], 0)
             self.assertEqual(output.getpixel((5, 5)), (255, 255, 255, 255))
 
-    def test_solid_key_spritesheet_background_can_be_removed_without_label_in_crop(self):
+    def test_solid_key_atlas_background_can_be_removed_without_label_in_crop(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
-            atlas = work / "spritesheet.png"
+            atlas = work / "atlas.png"
             image = Image.new("RGBA", (80, 60), (224, 224, 224, 255))
             pixels = image.load()
             for y in range(20, 44):
