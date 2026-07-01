@@ -47,10 +47,10 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
    First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons --atlas-bg solid-key`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. The prompt selects reusable `components[]` and includes their source instances as bbox references. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default background is `solid-key`.
 
 5. **Verify labeled atlas sheets** with `prompts/04_verify_ui_atlas.md`.
-   Check each generated atlas sheet before mapping. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, fake transparency, missing alpha, or flat bar fill, rebuild a focused `atlas/<name>.prompt.md` with `scripts/build_atlas_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
+   Check each generated atlas sheet before mapping using `effect.png`, the matching `atlas/<name>.prompt.md`, and the generated `atlas/<name>.png`. If QA reports missing components, wrong center semantics, decoration missing, unwanted texture noise, flat fill pollution, occlusion contamination, a label inside the sprite crop, fake transparency, missing alpha, or flat bar fill, rebuild a focused `atlas/<name>.prompt.md` with `scripts/build_atlas_prompt.py --component-id <id>` or `--component-group <group>` and regenerate the failed subset.
 
 6. **Extract per-atlas crop maps** with `prompts/04_extract_atlas_map.md`.
-   For each generated atlas image, output one sibling `atlas/<name>.map.yaml`. This is a per-atlas crop contract: atlas file, sprite crop bboxes, and output filenames. External id labels must not be included in crop bboxes. Do not output a global `atlas_map.yaml` in the new workflow.
+   For each generated atlas image, read the matching `atlas/<name>.prompt.md` and output one sibling `atlas/<name>.map.yaml`. This is a per-atlas crop contract: atlas file, sprite crop bboxes, and output filenames. External id labels must not be included in crop bboxes. Do not output a global `atlas_map.yaml` in the new workflow.
 
 7. **Slice sprites** with `scripts/ui_slice.py`.
    The slicer is mechanical: it validates inputs, crops bboxes, optionally removes border-connected background, and writes `sprites/*.png`. It does not infer, confirm, correct, generate reports, or draw debug overlays.
@@ -77,6 +77,8 @@ Keep two stable YAML-first contract files. `spec.yaml` is strict `schema_version
 ## Labeled Atlas Default
 
 Default Phase 4 uses `scripts/build_atlas_prompt.py` to generate an observable labeled atlas prompt. The generated image uses `--atlas-bg solid-key` by default with `#e0e0e0` outside sprites. Use `--atlas-bg transparent` only when explicitly requested and when the provider reliably supports true alpha. In both modes, component ids are external labels used for map extraction. Labels must remain outside sprite crop bboxes.
+
+Each `atlas/<name>.prompt.md` contains a Local Atlas Spec JSON block with `schema_version`, `source_image`, `style`, `atlas_context`, selected `components[]`, and selected `instances[]`. Phase 4 VLM steps use this local atlas contract, not the full `spec.yaml`, to avoid token bloat and cross-atlas component confusion. The full `spec.yaml` is read again in Phase 8 by `scripts/build_render_manifest.py`.
 
 Transparent atlas output must contain true RGBA alpha with 0% alpha background pixels. Checkerboard, grid, transparent preview patterns, gray-white squares, RGB output, or any visual simulation of transparency are failed transparent output. Do not silently fall back; ask for default solid-key regeneration or a provider that supports real alpha.
 

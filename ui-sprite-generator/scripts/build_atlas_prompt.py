@@ -286,21 +286,27 @@ def component_contract_markdown(components, source_instances):
     return "\n".join(lines)
 
 
-def raw_json_markdown(style, components, source_instances):
+def selected_instances(spec, components):
+    component_ids = {component["id"] for component in components}
+    return [
+        instance
+        for instance in spec.get("instances", [])
+        if instance.get("rendered") is not False and instance.get("uses") in component_ids
+    ]
+
+
+def local_atlas_spec_markdown(spec, style, components, instances, atlas_context):
     data = {
+        "schema_version": spec["schema_version"],
+        "source_image": spec["source_image"],
         "style": style,
+        "atlas_context": atlas_context,
         "components": components,
-        "source_instances": {
-            component["id"]: [
-                {"id": instance["id"], "source_bbox": instance["source_bbox"]}
-                for instance in source_instances.get(component["id"], [])
-            ]
-            for component in components
-        },
+        "instances": instances,
     }
     return "\n".join(
         [
-            "## Raw Selected Spec JSON",
+            "## Local Atlas Spec JSON",
             "",
             "```json",
             dump_data_to_string(data),
@@ -329,6 +335,15 @@ def build_prompt(
     source_instances = source_instances_by_component(spec)
     selected_area, fill_limit, over_budget = fill_budget(components, canvas_size, max_fill_ratio)
     style = style_contract(spec)
+    instances = selected_instances(spec, components)
+    atlas_context = {
+        "atlas_bg": atlas_bg,
+        "canvas_size": canvas_size,
+        "max_fill_ratio": max_fill_ratio,
+        "selected_target_area": selected_area,
+        "fill_budget_area": fill_limit,
+        "over_budget": over_budget,
+    }
     sections = [
         CANONICAL_PROMPT.rstrip(),
         "",
@@ -344,7 +359,7 @@ def build_prompt(
         component_contract_markdown(components, source_instances),
     ]
     if include_raw_json:
-        sections.append(raw_json_markdown(style, components, source_instances))
+        sections.append(local_atlas_spec_markdown(spec, style, components, instances, atlas_context))
     return "\n".join(sections).rstrip() + "\n"
 
 

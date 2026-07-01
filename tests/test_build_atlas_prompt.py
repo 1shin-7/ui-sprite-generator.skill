@@ -138,6 +138,13 @@ def minimal_spec():
     }
 
 
+def extract_local_atlas_spec(prompt):
+    start = prompt.index("## Local Atlas Spec JSON")
+    fence_start = prompt.index("```json", start) + len("```json")
+    fence_end = prompt.index("```", fence_start)
+    return json.loads(prompt[fence_start:fence_end].strip())
+
+
 class BuildAtlasPromptTests(unittest.TestCase):
     def test_help_exposes_atlas_controls(self):
         result = subprocess.run(
@@ -188,6 +195,31 @@ class BuildAtlasPromptTests(unittest.TestCase):
             self.assertIn("exp_bar_fill", content)
             self.assertIn("full rectangular fill texture", content)
             self.assertIn("do not infer a non-rectangular silhouette", content)
+
+    def test_prompt_embeds_local_complete_atlas_spec_for_selected_components(self):
+        module = load_script_module()
+        prompt = module.build_prompt(
+            minimal_spec(),
+            atlas_bg="transparent",
+            component_group="buttons",
+            canvas_size="1024x1536",
+            max_fill_ratio=0.5,
+        )
+        local_spec = extract_local_atlas_spec(prompt)
+
+        self.assertEqual(local_spec["schema_version"], "1.2")
+        self.assertEqual(local_spec["source_image"], {"path": "effect.png", "width": 800, "height": 600})
+        self.assertEqual(local_spec["atlas_context"]["atlas_bg"], "transparent")
+        self.assertEqual(local_spec["atlas_context"]["canvas_size"], "1024x1536")
+        self.assertEqual(local_spec["atlas_context"]["max_fill_ratio"], 0.5)
+        self.assertFalse(local_spec["atlas_context"]["over_budget"])
+        self.assertEqual([component["id"] for component in local_spec["components"]], ["flat_button"])
+        self.assertEqual(
+            [instance["id"] for instance in local_spec["instances"]],
+            ["flat_button_left", "flat_button_right"],
+        )
+        self.assertNotIn("background", local_spec)
+        self.assertNotIn("covered_panel", json.dumps(local_spec))
 
     def test_transparent_mode_requires_true_alpha_and_forbids_fake_transparency(self):
         module = load_script_module()

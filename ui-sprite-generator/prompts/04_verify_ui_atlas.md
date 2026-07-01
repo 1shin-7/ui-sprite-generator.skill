@@ -1,9 +1,11 @@
 # Prompt 04 - Verify UI Atlas
 
-**Inputs:** `effect.png`, `spec.yaml`, one generated `atlas/*.png`
+**Inputs:** `effect.png`, `atlas/<name>.prompt.md`, one generated `atlas/<name>.png`
 **Output:** valid JSON correction report or `{"status":"approved"}`
 
-You are a QA engineer for a game UI sprite pipeline. Compare the original effect image, the selected component contract in `spec.yaml`, and the generated labeled UI atlas.
+You are a QA engineer for a game UI sprite pipeline. Compare the original effect image, the Local Atlas Spec JSON inside `atlas/<name>.prompt.md`, and the generated labeled UI atlas.
+
+Use the `.prompt.md` file as the local atlas contract for this image. Do not request or read the full `spec.yaml` for this verification step; the prompt file already contains the selected components, selected instances, source image metadata, UI style, and atlas background mode needed for this atlas.
 
 For each selected component, evaluate:
 
