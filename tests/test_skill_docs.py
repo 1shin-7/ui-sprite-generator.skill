@@ -186,6 +186,14 @@ class SkillDocTests(unittest.TestCase):
         self.assertNotIn("image_size_plan.yaml", skill)
         self.assertIn("do not promote `sheet_plan.yaml`", skill)
 
+    def test_phase_4_documents_optional_maxrects_layout_planner(self):
+        skill = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+        self.assertIn("scripts/plan_atlas_layout.py", skill)
+        self.assertIn("maxrects", skill)
+        self.assertIn("stdout json", skill)
+        self.assertIn("not a stable contract", skill)
+
     def test_spec_prompt_allows_overlapping_source_bboxes_and_occlusion_reconstruction(self):
         content = (ROOT / "ui-sprite-generator" / "prompts" / "01_extract_spec.md").read_text(
             encoding="utf-8"

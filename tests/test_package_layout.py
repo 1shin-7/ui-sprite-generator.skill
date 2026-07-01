@@ -19,6 +19,7 @@ class PackageLayoutTests(unittest.TestCase):
         self.assertFalse((package / "prompts" / "03_generate_spritesheet.md").exists())
         self.assertFalse((package / "prompts" / "04_verify_spritesheet.md").exists())
         self.assertTrue((package / "scripts" / "build_atlas_prompt.py").is_file())
+        self.assertTrue((package / "scripts" / "plan_atlas_layout.py").is_file())
         self.assertFalse((package / "scripts" / "build_spritesheet_prompt.py").exists())
         self.assertTrue((package / "scripts" / "build_render_manifest.py").is_file())
         self.assertTrue((package / "scripts" / "data_io.py").is_file())
