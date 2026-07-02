@@ -48,7 +48,7 @@ Read only the prompt for the current phase. After completing a phase and writing
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report YAML or image size plan YAML.
 
 4. **Generate labeled atlas sheets** with `prompts/03_generate_ui_atlas.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons --atlas-bg solid-key --layout-strategy maxrects`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. The prompt selects reusable `components[]`, includes their source instances as bbox references, and embeds MaxRects placement guidance by default so the model does not invent the atlas packing plan. MaxRects reserves label rectangles above content rectangles; labels must stay in label rectangles and sprite art must stay in content rectangles. Use `--layout-strategy area-budget` only as a legacy fallback. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default background is `solid-key`.
+   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons --atlas-bg chroma-key --atlas-key-color #00ff00 --layout-strategy maxrects`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. The prompt selects reusable `components[]`, includes their source instances as bbox references, and embeds MaxRects placement guidance by default so the model does not invent the atlas packing plan. MaxRects reserves label rectangles above content rectangles; labels must stay in label rectangles and sprite art must stay in content rectangles. Use `--layout-strategy area-budget` only as a legacy fallback. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default background is `chroma-key`.
    `scripts/plan_atlas_layout.py` remains available as a standalone inspection helper. It emits stdout JSON placement guidance, but this output is not a stable contract and must not be promoted into a saved plan artifact.
 
 5. **Verify labeled atlas sheets** with `prompts/04_verify_ui_atlas.md`.
@@ -81,11 +81,11 @@ Keep two stable YAML-first contract files. `spec.yaml` is strict `schema_version
 
 ## Labeled Atlas Default
 
-Default Phase 4 uses `scripts/build_atlas_prompt.py` to generate an observable labeled atlas prompt. The generated image uses `--atlas-bg solid-key` by default with `#e0e0e0` outside sprites. Use `--atlas-bg transparent` only when explicitly requested and when the provider reliably supports true alpha. In both modes, component ids are external labels used for map extraction. Labels must remain inside their MaxRects label rectangles and outside sprite crop bboxes.
+Default Phase 4 uses `scripts/build_atlas_prompt.py` to generate an observable labeled atlas prompt. The generated image uses `--atlas-bg chroma-key --atlas-key-color #00ff00` by default. Chroma-key is a removable key-color background for image models that do not support true alpha; final sprite transparency comes from `scripts/ui_slice.py --bg-policy transparentize-border --bg-color #00ff00`, not from the image service. Use `--atlas-bg solid-key` only for legacy gray-key output or manual inspection. Use `--atlas-bg transparent` only when explicitly requested and when the provider reliably supports true alpha. Component ids are external labels used for map extraction. Labels must remain inside their MaxRects label rectangles and outside sprite crop bboxes.
 
 Each `atlas/<name>.prompt.md` contains a Local Atlas Spec JSON block with `schema_version`, `source_image`, `style`, `atlas_context`, selected `components[]`, and selected `instances[]`. Phase 4 VLM steps use this local atlas contract, not the full `spec.yaml`, to avoid token bloat and cross-atlas component confusion. The full `spec.yaml` is read again in Phase 8 by `scripts/build_render_manifest.py`.
 
-Transparent atlas output must contain true RGBA alpha with 0% alpha background pixels. Checkerboard, grid, transparent preview patterns, gray-white squares, RGB output, or any visual simulation of transparency are failed transparent output. Do not silently fall back; ask for default solid-key regeneration or a provider that supports real alpha.
+Transparent atlas output must contain true RGBA alpha with 0% alpha background pixels. Checkerboard, grid, transparent preview patterns, gray-white squares, RGB output, or any visual simulation of transparency are failed transparent output. Do not silently fall back; ask for chroma-key regeneration or a provider that supports real alpha.
 
 `debug_bbox.png`, when produced by a slicer or downstream debug tool, is only a visualization of an existing coordinate map for human review. It is not the source of automatic sprite recognition.
 
@@ -100,6 +100,17 @@ python scripts/ui_slice.py \
   --atlas-dir ui-sprite-runs/YYYY-MM-DD-slug/atlas \
   --out ui-sprite-runs/YYYY-MM-DD-slug/sprites \
   --bg-policy keep
+```
+
+Default chroma-key background cleanup:
+
+```bash
+python scripts/ui_slice.py \
+  --atlas-dir ui-sprite-runs/YYYY-MM-DD-slug/atlas \
+  --out ui-sprite-runs/YYYY-MM-DD-slug/sprites \
+  --bg-policy transparentize-border \
+  --bg-color #00ff00 \
+  --bg-tolerance 18
 ```
 
 Optional white or gray background cleanup:

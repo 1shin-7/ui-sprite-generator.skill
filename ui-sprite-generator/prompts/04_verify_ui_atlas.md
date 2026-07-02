@@ -25,6 +25,7 @@ For each selected component, evaluate:
       "label_inside_sprite": false,
       "source_background_pixels": false,
       "clipped_ornament": false,
+      "key_background_pollution": false,
       "fake_transparency": false,
       "missing_alpha": false,
       "flat_bar_fill": false,
@@ -48,6 +49,7 @@ For each selected component, evaluate:
 - `label_inside_sprite`: an id label touches or overlaps the sprite crop area.
 - `source_background_pixels`: source background, neighboring UI, copied text, or icon fragments appear around a sprite edge.
 - `clipped_ornament`: ornaments, glow, bevels, shadows, or protruding silhouettes are cut off by a rectangle.
+- `key_background_pollution`: chroma-key mode produced key-color stains, green/magenta/cyan spill, gradients, texture, shadows, glow spill, labels, or decorative marks in the removable key background or on sprite edges.
 - `fake_transparency`: transparent mode produced checkerboard, grid, transparent preview pattern, gray-white squares, or any visual simulation of alpha.
 - `missing_alpha`: transparent mode produced RGB output or non-transparent background pixels instead of true 0% alpha.
 - `flat_bar_fill`: a `bar_fill_texture` component is flat color instead of rich texture, glow, or pattern.
@@ -55,6 +57,8 @@ For each selected component, evaluate:
 
 If any component has an issue, set `status` to `needs_revision` and provide exact regeneration instructions. The next generation must use `scripts/build_atlas_prompt.py --component-id <id>` or `--component-group <group>` for the failed subset.
 
-If `fake_transparency` or `missing_alpha` is true for a transparent atlas request, treat the transparent atlas as failed. Do not silently fall back to solid-key output; ask for default solid-key regeneration or a provider that supports real alpha.
+Apply `fake_transparency` and `missing_alpha` only when the Local Atlas Spec requests `atlas_bg: transparent`. Chroma-key mode is not transparency; it is approved only when the key background is a flat removable color and sprite art remains clean.
+
+If `fake_transparency` or `missing_alpha` is true for a transparent atlas request, treat the transparent atlas as failed. Do not silently fall back to solid-key output; ask for chroma-key regeneration or a provider that supports real alpha.
 
 Output only valid JSON.

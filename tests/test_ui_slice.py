@@ -254,6 +254,63 @@ class UiSliceTests(unittest.TestCase):
             colors = [output.getpixel((x, y)) for y in range(output.height) for x in range(output.width)]
             self.assertNotIn((120, 120, 120, 255), colors)
 
+    def test_chroma_key_background_removal_preserves_internal_matching_green(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            atlas = work / "atlas.png"
+            image = Image.new("RGBA", (14, 14), (0, 255, 0, 255))
+            pixels = image.load()
+            for y in range(3, 11):
+                for x in range(3, 11):
+                    pixels[x, y] = (40, 40, 40, 255)
+            pixels[7, 7] = (0, 255, 0, 255)
+            image.save(atlas)
+
+            atlas_map = work / "atlas_map.json"
+            atlas_map.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1.0",
+                        "atlases": [{"id": "sheet", "file": str(atlas)}],
+                        "sprites": [
+                            {
+                                "id": "gem",
+                                "atlas": "sheet",
+                                "filename": "gem.png",
+                                "bbox": {"x": 0, "y": 0, "w": 14, "h": 14},
+                                "display_size": {"w": 14, "h": 14},
+                                "render_pattern": "background_image",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--map",
+                    str(atlas_map),
+                    "--out",
+                    str(work / "sprites"),
+                    "--bg-policy",
+                    "transparentize-border",
+                    "--bg-color",
+                    "#00ff00",
+                    "--bg-tolerance",
+                    "0",
+                ],
+                text=True,
+                capture_output=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            output = Image.open(work / "sprites" / "gem.png").convert("RGBA")
+            self.assertEqual(output.getpixel((0, 0))[3], 0)
+            self.assertEqual(output.getpixel((7, 7)), (0, 255, 0, 255))
+
     def test_accepts_yaml_atlas_map_when_pyyaml_is_available(self):
         try:
             import yaml  # noqa: F401

@@ -17,6 +17,7 @@ Use the Local Atlas Spec JSON inside `atlas/<name>.prompt.md` as the local atlas
 - Do not infer, copy, or emit final layout fields. `source_bbox`, `display_size`, `z_index`, `render_pattern`, and `render_params` come from the full `spec.yaml` later in Phase 8 and the render manifest builder, not from the atlas image.
 - Coordinates must describe the atlas crop only. Do not include debug labels or contact sheet metadata.
 - Coordinates must describe the sprite crop only. Do not include the external id label, contact sheet label, bbox label, or surrounding key-color background except for a small bleed margin.
+- In `atlas_bg: chroma-key` mode, a small rim of key-color bleed is acceptable only when needed to preserve antialiasing, glow, or shadow. Never include the external label.
 - Expand each crop enough to preserve antialiasing, shadows, glows, and ornaments, but never include the external label.
 - Do not correct the spec, add new components, or omit components without explicitly regenerating the atlas first.
 

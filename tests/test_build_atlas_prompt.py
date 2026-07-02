@@ -155,6 +155,7 @@ class BuildAtlasPromptTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertIn("--atlas-bg", result.stdout)
+        self.assertIn("--atlas-key-color", result.stdout)
         self.assertNotIn("--sheet-mode", result.stdout)
         self.assertIn("--max-fill-ratio", result.stdout)
         self.assertIn("--component-group", result.stdout)
@@ -165,7 +166,7 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertIn("--layout-scale", result.stdout)
         self.assertIn("--oversize", result.stdout)
 
-    def test_builds_labeled_solid_key_atlas_prompt_by_default(self):
+    def test_builds_labeled_chroma_key_atlas_prompt_by_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
             spec_path = work / "spec.json"
@@ -181,8 +182,10 @@ class BuildAtlasPromptTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             content = out_path.read_text(encoding="utf-8").lower()
             self.assertIn("# ui atlas generation prompt", content)
-            self.assertIn("atlas_bg: solid-key", content)
-            self.assertIn("solid `#e0e0e0`", content)
+            self.assertIn("atlas_bg: chroma-key", content)
+            self.assertIn("atlas_key_color: #00ff00", content)
+            self.assertIn("single flat chroma key `#00ff00`", content)
+            self.assertNotIn("solid `#e0e0e0`", content)
             self.assertIn("print each component id", content)
             self.assertIn("outside and above", content)
             self.assertIn("label must not overlap", content)
@@ -222,6 +225,7 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertEqual(local_spec["schema_version"], "1.2")
         self.assertEqual(local_spec["source_image"], {"path": "effect.png", "width": 800, "height": 600})
         self.assertEqual(local_spec["atlas_context"]["atlas_bg"], "transparent")
+        self.assertEqual(local_spec["atlas_context"]["atlas_key_color"], "#00ff00")
         self.assertEqual(local_spec["atlas_context"]["canvas_size"], "1024x1536")
         self.assertEqual(local_spec["atlas_context"]["layout_strategy"], "maxrects")
         self.assertNotIn("max_fill_ratio", local_spec["atlas_context"])
@@ -253,6 +257,30 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertIn("grid", prompt)
         self.assertIn("fake transparency", prompt)
         self.assertNotIn("solid `#e0e0e0`", prompt)
+        self.assertNotIn("single flat chroma key", prompt)
+
+    def test_solid_key_mode_keeps_legacy_gray_key_contract(self):
+        module = load_script_module()
+        prompt = module.build_prompt(minimal_spec(), atlas_bg="solid-key")
+
+        self.assertIn("atlas_bg: solid-key", prompt)
+        self.assertIn("solid `#e0e0e0`", prompt)
+        self.assertNotIn("single flat chroma key", prompt)
+
+    def test_custom_chroma_key_color_is_embedded_in_prompt_and_local_spec(self):
+        module = load_script_module()
+        prompt = module.build_prompt(minimal_spec(), atlas_key_color="#ff00ff")
+        local_spec = extract_local_atlas_spec(prompt)
+
+        self.assertIn("single flat chroma key `#ff00ff`", prompt)
+        self.assertEqual(local_spec["atlas_context"]["atlas_bg"], "chroma-key")
+        self.assertEqual(local_spec["atlas_context"]["atlas_key_color"], "#ff00ff")
+
+    def test_rejects_invalid_chroma_key_color(self):
+        module = load_script_module()
+
+        with self.assertRaisesRegex(module.PromptBuildError, "invalid atlas key color"):
+            module.build_prompt(minimal_spec(), atlas_key_color="green")
 
     def test_overpacked_atlas_warns_to_split_without_changing_target_px(self):
         module = load_script_module()

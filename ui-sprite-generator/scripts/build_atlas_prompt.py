@@ -2,6 +2,7 @@
 """Build the canonical Markdown prompt for labeled UI atlas generation."""
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -20,6 +21,9 @@ from plan_atlas_layout import (  # noqa: E402
 
 class PromptBuildError(Exception):
     pass
+
+
+HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 CANONICAL_PROMPT = """# UI Atlas Generation Prompt
@@ -326,12 +330,24 @@ def format_target(component):
     return f"{width}x{height}"
 
 
-def background_contract(atlas_bg):
+def validate_hex_color(value):
+    if not HEX_COLOR.fullmatch(value):
+        raise PromptBuildError(f"invalid atlas key color: {value}")
+    return value.lower()
+
+
+def background_contract(atlas_bg, atlas_key_color):
     if atlas_bg == "transparent":
         return (
             "- Use a true transparent RGBA canvas. Background pixels must have 0% alpha. "
             "Do not draw checkerboard, grid, transparent preview pattern, gray-white squares, "
             "or any fake transparency texture."
+        )
+    if atlas_bg == "chroma-key":
+        return (
+            f"- Use a single flat chroma key `{atlas_key_color}` canvas background outside sprites. "
+            "The chroma key is a removable background, not transparency. Do not draw gradients, "
+            "texture, checkerboard, shadows, glow spill, labels, or decorative marks into the key background."
         )
     return "- Use a solid `#e0e0e0` canvas background. The key color is outside sprites and may be removed by the slicer."
 
@@ -412,7 +428,8 @@ def dump_data_to_string(data):
 
 def build_prompt(
     spec,
-    atlas_bg="solid-key",
+    atlas_bg="chroma-key",
+    atlas_key_color="#00ff00",
     component_group=None,
     component_ids=None,
     canvas_size="1536x1024",
@@ -425,6 +442,9 @@ def build_prompt(
     oversize="clamp",
     include_raw_json=True,
 ):
+    if atlas_bg not in {"chroma-key", "solid-key", "transparent"}:
+        raise PromptBuildError("atlas_bg must be 'chroma-key', 'solid-key', or 'transparent'")
+    atlas_key_color = validate_hex_color(atlas_key_color)
     components = select_components(spec, component_group=component_group, component_ids=component_ids)
     source_instances = source_instances_by_component(spec)
     selected_area, fill_limit, over_budget = fill_budget(components, canvas_size, max_fill_ratio)
@@ -445,6 +465,7 @@ def build_prompt(
         raise PromptBuildError("layout_strategy must be 'maxrects' or 'area-budget'")
     atlas_context = {
         "atlas_bg": atlas_bg,
+        "atlas_key_color": atlas_key_color,
         "canvas_size": canvas_size,
         "layout_strategy": layout_strategy,
     }
@@ -463,10 +484,11 @@ def build_prompt(
         "## Build Parameters",
         "",
         f"- atlas_bg: {atlas_bg}",
+        f"- atlas_key_color: {atlas_key_color}",
         f"- canvas_size: {canvas_size}",
         f"- layout_strategy: {layout_strategy}",
         "- canvas size is a generation preference, not the source image dimensions.",
-        background_contract(atlas_bg),
+        background_contract(atlas_bg, atlas_key_color),
         "",
         maxrects_layout_guidance(layout) if layout is not None else packing_guidance(selected_area, fill_limit, over_budget),
         component_contract_markdown(components, source_instances),
@@ -480,7 +502,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Build the canonical Markdown prompt for UI atlas generation.")
     parser.add_argument("--spec", required=True, type=Path, help="Path to spec.yaml or spec.json")
     parser.add_argument("--output", required=True, type=Path, help="Output Markdown prompt path")
-    parser.add_argument("--atlas-bg", choices=["solid-key", "transparent"], default="solid-key")
+    parser.add_argument("--atlas-bg", choices=["chroma-key", "solid-key", "transparent"], default="chroma-key")
+    parser.add_argument("--atlas-key-color", default="#00ff00", help="Chroma-key background color as #rrggbb")
     parser.add_argument("--component-group", help="Only include components with this atlas_policy.group")
     parser.add_argument("--component-id", action="append", help="Only include this component id; repeat as needed")
     parser.add_argument("--canvas-size", default="1536x1024", help="Preferred generation canvas size")
@@ -510,10 +533,12 @@ def main(argv=None):
             raise PromptBuildError("--layout-label-gap must be >= 0")
         if args.layout_label_height == 0 and args.layout_label_gap != 0:
             raise PromptBuildError("--layout-label-gap must be 0 when --layout-label-height is 0")
+        atlas_key_color = validate_hex_color(args.atlas_key_color)
         spec = load_spec(args.spec)
         prompt = build_prompt(
             spec,
             atlas_bg=args.atlas_bg,
+            atlas_key_color=atlas_key_color,
             component_group=args.component_group,
             component_ids=args.component_id,
             canvas_size=args.canvas_size,

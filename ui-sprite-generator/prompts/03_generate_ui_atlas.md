@@ -11,7 +11,19 @@ Generate observable labeled atlas sheets from regenerated UI sprite components. 
 
 ## Required Builder
 
-Default solid-key atlas:
+Default chroma-key atlas:
+
+```bash
+python scripts/build_atlas_prompt.py \
+  --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml \
+  --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md \
+  --component-group buttons \
+  --atlas-bg chroma-key \
+  --atlas-key-color #00ff00 \
+  --layout-strategy maxrects
+```
+
+Legacy solid-key atlas, only for compatibility or manual inspection:
 
 ```bash
 python scripts/build_atlas_prompt.py \
@@ -66,7 +78,9 @@ MaxRects reserves an external label height of 20px and a label gap of 20px by de
 
 ## Background Modes
 
-- `--atlas-bg solid-key` is the default. Use a clean solid `#e0e0e0` background outside sprites so the slicer can remove border-connected background when needed.
+- `--atlas-bg chroma-key` is the default. Use a single flat key color such as `#00ff00` outside sprites so the slicer can remove border-connected background after generation. Chroma-key is not transparency; final alpha comes from slicing.
+- Chroma-key mode must not draw gradients, texture, checkerboard, shadows, glow spill, labels, or decorative marks into the key background.
+- `--atlas-bg solid-key` is a legacy fallback. Use a clean solid `#e0e0e0` background outside sprites so the slicer can remove border-connected background when needed.
 - `--atlas-bg transparent` is opt-in only. The output must be true RGBA with 0% alpha background pixels.
 - Transparent mode must not draw checkerboard, grid, transparent preview pattern, gray-white squares, or any fake transparency texture. If the image service returns fake transparency or no alpha channel, the transparent atlas generation failed; do not silently fall back.
 
