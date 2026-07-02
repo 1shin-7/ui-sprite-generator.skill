@@ -40,9 +40,9 @@ The attached effect image is the SOURCE MOCKUP. Match its UI material, color ton
 
 ## Atlas Rules
 
-- Arrange selected components in a loose grid with comfortable gutters.
+- Follow MaxRects Layout Guidance when it is present. Do not invent a different packing plan.
 - Print each component id in small neutral gray text outside and above its sprite.
-- The external label must not overlap, touch, or be inside the sprite crop area.
+- The external label must stay inside the planned label rectangle. The label must not overlap, touch, or be inside the sprite crop area.
 - Do not draw text, numbers, bbox labels, or ids inside any sprite.
 - Hollow or transparent centers must remain empty: no interior content, no illustrative fill, no material fill, and no decorative texture unless the component data explicitly says that center content exists.
 - Style words affect only allowed component surfaces: border, trim, bevel, ornament, glow, material, and declared filled regions.
@@ -52,6 +52,7 @@ The attached effect image is the SOURCE MOCKUP. Match its UI material, color ton
 - A `bar_fill_texture` component must be a full-width 100% fill texture with rich texture, glow, or pattern; a flat color is not acceptable.
 - A `bar_fill_texture` component is a full rectangular fill texture behind its track or frame. Do not infer a non-rectangular silhouette from decorative frame occlusion; clipping and masking happen later in HTML.
 - For `occlusion.status = partially_occluded`, redraw a complete unobstructed sprite. Do not include the text, badge, floating overlay, neighboring sprite, or source pixels that cover it in the mockup.
+- Do not infer missing ornament, hidden decoration, icons, text, symbols, cracks, or texture when the source does not show enough evidence. When uncertain, keep the sprite simple and faithful to the visible style contract.
 - Preserve all declared attached decorations and protruding silhouettes.
 - Keep enough bleed around antialiasing, shadows, glows, and ornaments.
 - Do not rotate components.
@@ -60,7 +61,7 @@ The attached effect image is the SOURCE MOCKUP. Match its UI material, color ton
 
 ## Output Naming
 
-Save the generated image as a labeled atlas file such as:
+The caller saves the generated image under `atlas/`, with a filename such as:
 
 ```text
 atlas/buttons_01.png
@@ -191,7 +192,7 @@ def fill_budget(components, canvas_size, max_fill_ratio):
     return area, int(limit), area > limit
 
 
-def max_generation_scale(component):
+def max_detail_scale_limit(component):
     role = component.get("role", "").lower()
     surface_policy = component.get("surface_policy", "").lower()
     if role == "bar_fill_texture" or surface_policy == "flat_fill":
@@ -230,7 +231,7 @@ def sprite_items_from_components(components):
     return items
 
 
-def maxrects_layout(components, canvas_size, padding, scale, oversize):
+def maxrects_layout(components, canvas_size, padding, scale, oversize, label_height, label_gap):
     try:
         atlas_size = parse_size(canvas_size)
         groups = pack_groups_maxrects(
@@ -239,10 +240,20 @@ def maxrects_layout(components, canvas_size, padding, scale, oversize):
             padding=padding,
             scale=scale,
             oversize=oversize,
+            label_height=label_height,
+            label_gap=label_gap,
         )
     except LayoutError as exc:
         raise PromptBuildError(str(exc)) from exc
-    return layout_to_data(groups, atlas_size, padding=padding, scale=scale, oversize=oversize)
+    return layout_to_data(
+        groups,
+        atlas_size,
+        padding=padding,
+        scale=scale,
+        oversize=oversize,
+        label_height=label_height,
+        label_gap=label_gap,
+    )
 
 
 def maxrects_layout_guidance(layout):
@@ -259,6 +270,8 @@ def maxrects_layout_guidance(layout):
         f"- atlas_size: {layout['atlas_size'][0]}x{layout['atlas_size'][1]}",
         f"- atlas_count: {len(layout['atlases'])}",
         f"- padding: {layout['padding']}",
+        f"- label_height: {layout['label_height']}",
+        f"- label_gap: {layout['label_gap']}",
         f"- requested_scale: {layout['requested_scale']}",
         f"- oversize: {layout['oversize']}",
     ]
@@ -267,7 +280,8 @@ def maxrects_layout_guidance(layout):
     lines.extend(
         [
             "- Follow these placements instead of inventing a new packing plan.",
-            "- Keep labels outside each planned cell and keep sprite art inside the content rectangle.",
+            "- Keep each label inside the label rectangle and each sprite inside the content rectangle.",
+            "- The map extraction crop must include sprite art only; it must not include the label rectangle.",
             "",
         ]
     )
@@ -279,6 +293,8 @@ def maxrects_layout_guidance(layout):
                 "- "
                 f"{placement['id']}: atlas_index={placement['atlas_index']}, "
                 f"cell=(x={placement['x']}, y={placement['y']}, w={placement['w']}, h={placement['h']}), "
+                f"label=(x={placement['label_x']}, y={placement['label_y']}, "
+                f"w={placement['label_w']}, h={placement['label_h']}, label_gap={placement['label_gap']}), "
                 f"content=(x={placement['content_x']}, y={placement['content_y']}, "
                 f"content_w={placement['content_w']}, content_h={placement['content_h']}), "
                 f"target_px={placement['target_w']}x{placement['target_h']}, "
@@ -347,7 +363,7 @@ def component_contract_markdown(components, source_instances):
                 f"- occlusion_reconstruction: {occlusion.get('reconstruction', 'redraw as visible')}",
                 f"- render_pattern: {component['render_pattern']}",
                 f"- target_px: {format_target(component)}",
-                f"- max_generation_scale: {max_generation_scale(component)}x",
+                f"- max_detail_scale_limit: {max_detail_scale_limit(component)}x",
                 f"- atlas_group: {component['atlas_policy']['group']}",
                 f"- minimum_gutter: {component['atlas_policy']['minimum_gutter']}",
                 f"- states: {', '.join(component['states']) or 'default'}",
@@ -404,6 +420,8 @@ def build_prompt(
     layout_strategy="maxrects",
     layout_padding=24,
     layout_scale=1.0,
+    layout_label_height=20,
+    layout_label_gap=20,
     oversize="clamp",
     include_raw_json=True,
 ):
@@ -414,20 +432,31 @@ def build_prompt(
     instances = selected_instances(spec, components)
     layout = None
     if layout_strategy == "maxrects":
-        layout = maxrects_layout(components, canvas_size, layout_padding, layout_scale, oversize)
+        layout = maxrects_layout(
+            components,
+            canvas_size,
+            layout_padding,
+            layout_scale,
+            oversize,
+            layout_label_height,
+            layout_label_gap,
+        )
     elif layout_strategy != "area-budget":
         raise PromptBuildError("layout_strategy must be 'maxrects' or 'area-budget'")
     atlas_context = {
         "atlas_bg": atlas_bg,
         "canvas_size": canvas_size,
-        "max_fill_ratio": max_fill_ratio,
-        "selected_target_area": selected_area,
-        "fill_budget_area": fill_limit,
-        "over_budget": over_budget,
         "layout_strategy": layout_strategy,
     }
     if layout is not None:
         atlas_context["layout"] = layout
+    else:
+        atlas_context["legacy_budget"] = {
+            "max_fill_ratio": max_fill_ratio,
+            "selected_target_area": selected_area,
+            "fill_budget_area": fill_limit,
+            "over_budget": over_budget,
+        }
     sections = [
         CANONICAL_PROMPT.rstrip(),
         "",
@@ -435,7 +464,6 @@ def build_prompt(
         "",
         f"- atlas_bg: {atlas_bg}",
         f"- canvas_size: {canvas_size}",
-        f"- max_fill_ratio: {max_fill_ratio}",
         f"- layout_strategy: {layout_strategy}",
         "- canvas size is a generation preference, not the source image dimensions.",
         background_contract(atlas_bg),
@@ -460,6 +488,8 @@ def parse_args(argv=None):
     parser.add_argument("--layout-strategy", choices=["maxrects", "area-budget"], default="maxrects")
     parser.add_argument("--layout-padding", type=int, default=24, help="MaxRects cell padding around each sprite")
     parser.add_argument("--layout-scale", type=float, default=1.0, help="MaxRects target_px scale before packing")
+    parser.add_argument("--layout-label-height", type=int, default=20, help="MaxRects external label row height")
+    parser.add_argument("--layout-label-gap", type=int, default=20, help="Gap between label row and sprite content")
     parser.add_argument("--oversize", choices=["clamp", "fail"], default="clamp")
     parser.add_argument("--include-raw-json", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args(argv)
@@ -474,6 +504,12 @@ def main(argv=None):
             raise PromptBuildError("--layout-padding must be >= 0")
         if args.layout_scale <= 0:
             raise PromptBuildError("--layout-scale must be > 0")
+        if args.layout_label_height < 0:
+            raise PromptBuildError("--layout-label-height must be >= 0")
+        if args.layout_label_gap < 0:
+            raise PromptBuildError("--layout-label-gap must be >= 0")
+        if args.layout_label_height == 0 and args.layout_label_gap != 0:
+            raise PromptBuildError("--layout-label-gap must be 0 when --layout-label-height is 0")
         spec = load_spec(args.spec)
         prompt = build_prompt(
             spec,
@@ -485,6 +521,8 @@ def main(argv=None):
             layout_strategy=args.layout_strategy,
             layout_padding=args.layout_padding,
             layout_scale=args.layout_scale,
+            layout_label_height=args.layout_label_height,
+            layout_label_gap=args.layout_label_gap,
             oversize=args.oversize,
             include_raw_json=args.include_raw_json,
         )

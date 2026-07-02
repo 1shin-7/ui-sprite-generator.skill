@@ -128,6 +128,9 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("--atlas-bg transparent", atlas_prompt)
         self.assertIn("--layout-strategy maxrects", atlas_prompt)
         self.assertIn("--layout-strategy area-budget", atlas_prompt)
+        self.assertIn("label height", atlas_prompt)
+        self.assertIn("label gap", atlas_prompt)
+        self.assertIn("maxrects", atlas_prompt)
         self.assertIn("external label", atlas_prompt)
         self.assertIn("debug_bbox.png", skill)
         self.assertNotIn("build_spritesheet_prompt.py", skill)
@@ -198,6 +201,15 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("default", skill)
         self.assertIn("not a stable contract", skill)
 
+    def test_skill_requires_progressive_prompt_reading(self):
+        skill = (ROOT / "ui-sprite-generator" / "SKILL.md").read_text(encoding="utf-8").lower()
+
+        self.assertIn("progressive reading", skill)
+        self.assertIn("read only the prompt for the current phase", skill)
+        self.assertIn("after completing a phase", skill)
+        self.assertIn("do not preload every prompt", skill)
+        self.assertIn("do not preload script source", skill)
+
     def test_spec_prompt_allows_overlapping_source_bboxes_and_occlusion_reconstruction(self):
         content = (ROOT / "ui-sprite-generator" / "prompts" / "01_extract_spec.md").read_text(
             encoding="utf-8"
@@ -250,6 +262,8 @@ class SkillDocTests(unittest.TestCase):
         self.assertIn("do not infer an irregular visible silhouette", spec_prompt)
         self.assertIn("do not increase target_px", atlas_prompt)
         self.assertIn("do not invent detail", atlas_prompt)
+        self.assertIn("do not infer missing ornament", atlas_prompt)
+        self.assertIn("when uncertain", atlas_prompt)
         self.assertIn("full rectangular fill texture", atlas_prompt)
         self.assertIn("overgenerated_detail", qa_prompt)
         self.assertIn("non_rectangular_bar_fill", qa_prompt)

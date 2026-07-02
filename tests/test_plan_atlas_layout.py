@@ -96,9 +96,40 @@ class PlanAtlasLayoutTests(unittest.TestCase):
         placements = module.pack_maxrects([module.SpriteItem("button", 100, 40)], (160, 120), padding=10)
         placement = placements[0]
 
-        self.assertEqual((placement.w, placement.h), (120, 60))
-        self.assertEqual((placement.content_x, placement.content_y), (placement.x + 10, placement.y + 10))
+        self.assertEqual((placement.w, placement.h), (120, 100))
+        self.assertEqual((placement.label_x, placement.label_y), (placement.x + 10, placement.y + 10))
+        self.assertEqual((placement.label_w, placement.label_h), (100, 20))
+        self.assertEqual((placement.content_x, placement.content_y), (placement.x + 10, placement.y + 50))
         self.assertEqual((placement.content_w, placement.content_h), (100, 40))
+
+    def test_label_height_and_gap_can_be_disabled_for_unlabeled_layouts(self):
+        module = load_script_module()
+        placements = module.pack_maxrects(
+            [module.SpriteItem("button", 100, 40)],
+            (160, 120),
+            padding=10,
+            label_height=0,
+            label_gap=0,
+        )
+        placement = placements[0]
+
+        self.assertEqual((placement.w, placement.h), (120, 60))
+        self.assertEqual((placement.label_w, placement.label_h), (0, 0))
+        self.assertEqual((placement.content_x, placement.content_y), (placement.x + 10, placement.y + 10))
+
+    def test_long_label_expands_cell_width_and_centers_content(self):
+        module = load_script_module()
+        placements = module.pack_maxrects(
+            [module.SpriteItem("very_long_component_identifier", 40, 20)],
+            (512, 128),
+            padding=8,
+        )
+        placement = placements[0]
+
+        self.assertGreater(placement.label_w, placement.content_w)
+        self.assertEqual(placement.w, placement.label_w + 16)
+        self.assertEqual(placement.label_x, placement.x + 8)
+        self.assertGreater(placement.content_x, placement.label_x)
 
     def test_scale_increases_content_size(self):
         module = load_script_module()
@@ -184,6 +215,8 @@ class PlanAtlasLayoutTests(unittest.TestCase):
         data = json.loads(result.stdout)
         self.assertEqual(data["atlas_size"], [256, 128])
         self.assertEqual(data["padding"], 4)
+        self.assertEqual(data["label_height"], 20)
+        self.assertEqual(data["label_gap"], 20)
         self.assertEqual(data["atlases"][0]["placements"][0]["id"], "button_primary")
 
     def test_cli_pretty_outputs_indented_json(self):

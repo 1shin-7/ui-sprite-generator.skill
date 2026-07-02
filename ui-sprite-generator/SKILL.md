@@ -32,6 +32,10 @@ Create `ui-sprite-runs/.gitignore` from `templates/runs.gitignore` before any cr
 
 Do not ask the user to edit a non-existent .env path. If credentials are needed and `ui-sprite-runs/.env` is missing, create `ui-sprite-runs/`, copy `config/image-api.env.example` to `ui-sprite-runs/.env`, ensure `ui-sprite-runs/.gitignore` exists, then report the exact created path for the user to edit.
 
+## Progressive Reading
+
+Read only the prompt for the current phase. After completing a phase and writing or verifying its output, read the next phase prompt. Do not preload every prompt, schema, or script source when the skill starts. Use helper CLIs and `--help` during normal execution; do not preload script source unless you are changing a helper, debugging unexpected behavior, or validating security-sensitive behavior.
+
 ## Workflow
 
 1. **Extract spec** with `prompts/01_extract_spec.md`.
@@ -44,7 +48,7 @@ Do not ask the user to edit a non-existent .env path. If credentials are needed 
    Output `background_plate.png`. This step is mandatory. Preserve visible background regions and infer UI-occluded regions by inpainting or generation. The final background plate must match the source canvas dimensions, but the image API generation size may be a larger standard size selected at runtime. Use `scripts/openai_image.py --size auto --purpose background --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --normalize-background-to-source` when the provider supports standard sizes better than the exact source size. Do not create a stable background report YAML or image size plan YAML.
 
 4. **Generate labeled atlas sheets** with `prompts/03_generate_ui_atlas.md`.
-   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons --atlas-bg solid-key --layout-strategy maxrects`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. The prompt selects reusable `components[]`, includes their source instances as bbox references, and embeds MaxRects placement guidance by default so the model does not invent the atlas packing plan. Use `--layout-strategy area-budget` only as a legacy fallback. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default background is `solid-key`.
+   First generate the formal Markdown prompt artifact with `scripts/build_atlas_prompt.py --spec ui-sprite-runs/YYYY-MM-DD-slug/spec.yaml --output ui-sprite-runs/YYYY-MM-DD-slug/atlas/buttons_01.prompt.md --component-group buttons --atlas-bg solid-key --layout-strategy maxrects`. Do not handwrite the prompt, do not summarize the canonical prompt, and do not replace it with a shorter natural-language prompt. The prompt selects reusable `components[]`, includes their source instances as bbox references, and embeds MaxRects placement guidance by default so the model does not invent the atlas packing plan. MaxRects reserves label rectangles above content rectangles; labels must stay in label rectangles and sprite art must stay in content rectangles. Use `--layout-strategy area-budget` only as a legacy fallback. Then pass that Markdown file to the selected image generation service from the Generation Capability Gate. Output one or more labeled atlas PNGs under `atlas/`. The default background is `solid-key`.
    `scripts/plan_atlas_layout.py` remains available as a standalone inspection helper. It emits stdout JSON placement guidance, but this output is not a stable contract and must not be promoted into a saved plan artifact.
 
 5. **Verify labeled atlas sheets** with `prompts/04_verify_ui_atlas.md`.
@@ -77,7 +81,7 @@ Keep two stable YAML-first contract files. `spec.yaml` is strict `schema_version
 
 ## Labeled Atlas Default
 
-Default Phase 4 uses `scripts/build_atlas_prompt.py` to generate an observable labeled atlas prompt. The generated image uses `--atlas-bg solid-key` by default with `#e0e0e0` outside sprites. Use `--atlas-bg transparent` only when explicitly requested and when the provider reliably supports true alpha. In both modes, component ids are external labels used for map extraction. Labels must remain outside sprite crop bboxes.
+Default Phase 4 uses `scripts/build_atlas_prompt.py` to generate an observable labeled atlas prompt. The generated image uses `--atlas-bg solid-key` by default with `#e0e0e0` outside sprites. Use `--atlas-bg transparent` only when explicitly requested and when the provider reliably supports true alpha. In both modes, component ids are external labels used for map extraction. Labels must remain inside their MaxRects label rectangles and outside sprite crop bboxes.
 
 Each `atlas/<name>.prompt.md` contains a Local Atlas Spec JSON block with `schema_version`, `source_image`, `style`, `atlas_context`, selected `components[]`, and selected `instances[]`. Phase 4 VLM steps use this local atlas contract, not the full `spec.yaml`, to avoid token bloat and cross-atlas component confusion. The full `spec.yaml` is read again in Phase 8 by `scripts/build_render_manifest.py`.
 

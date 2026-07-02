@@ -192,12 +192,16 @@ class BuildAtlasPromptTests(unittest.TestCase):
             self.assertIn("flat_button_right", content)
             self.assertIn("surface_policy: flat_fill", content)
             self.assertIn("do not add painterly texture", content)
-            self.assertIn("max_generation_scale", content)
+            self.assertIn("max_detail_scale_limit", content)
             self.assertIn("do not increase target_px", content)
             self.assertIn("maxrects layout guidance", content)
+            self.assertIn("follow maxrects layout guidance", content)
             self.assertIn("layout_strategy: maxrects", content)
             self.assertIn("atlas_index=0", content)
+            self.assertIn("label=(x=", content)
+            self.assertIn("label_gap=20", content)
             self.assertIn("content_w=240", content)
+            self.assertNotIn("loose grid", content)
             self.assertIn("covered_panel", content)
             self.assertIn("redraw the full unobstructed", content)
             self.assertIn("exp_bar_fill", content)
@@ -219,16 +223,18 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertEqual(local_spec["source_image"], {"path": "effect.png", "width": 800, "height": 600})
         self.assertEqual(local_spec["atlas_context"]["atlas_bg"], "transparent")
         self.assertEqual(local_spec["atlas_context"]["canvas_size"], "1024x1536")
-        self.assertEqual(local_spec["atlas_context"]["max_fill_ratio"], 0.5)
-        self.assertFalse(local_spec["atlas_context"]["over_budget"])
         self.assertEqual(local_spec["atlas_context"]["layout_strategy"], "maxrects")
+        self.assertNotIn("max_fill_ratio", local_spec["atlas_context"])
+        self.assertNotIn("over_budget", local_spec["atlas_context"])
         self.assertIn("layout", local_spec["atlas_context"])
         self.assertEqual(local_spec["atlas_context"]["layout"]["padding"], 24)
+        self.assertEqual(local_spec["atlas_context"]["layout"]["label_height"], 20)
+        self.assertEqual(local_spec["atlas_context"]["layout"]["label_gap"], 20)
         self.assertEqual(local_spec["atlas_context"]["layout"]["requested_scale"], 1.0)
-        self.assertEqual(
-            local_spec["atlas_context"]["layout"]["atlases"][0]["placements"][0]["id"],
-            "flat_button",
-        )
+        placement = local_spec["atlas_context"]["layout"]["atlases"][0]["placements"][0]
+        self.assertEqual(placement["id"], "flat_button")
+        self.assertEqual(placement["label_h"], 20)
+        self.assertEqual(placement["content_y"], placement["y"] + 24 + 20 + 20)
         self.assertEqual([component["id"] for component in local_spec["components"]], ["flat_button"])
         self.assertEqual(
             [instance["id"] for instance in local_spec["instances"]],
@@ -261,6 +267,9 @@ class BuildAtlasPromptTests(unittest.TestCase):
         self.assertIn("split this request into smaller atlas sheets", prompt)
         self.assertIn("Do not increase target_px", prompt)
         self.assertIn("target_px: 240x96", prompt)
+        local_spec = extract_local_atlas_spec(prompt)
+        self.assertEqual(local_spec["atlas_context"]["layout_strategy"], "area-budget")
+        self.assertEqual(local_spec["atlas_context"]["legacy_budget"]["max_fill_ratio"], 0.65)
         self.assertEqual(prompt.count("### 1. `flat_button`"), 1)
 
     def test_maxrects_layout_clamps_oversized_default_without_area_budget_warning(self):

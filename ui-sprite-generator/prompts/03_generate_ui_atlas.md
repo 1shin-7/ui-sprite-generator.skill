@@ -35,6 +35,8 @@ python scripts/build_atlas_prompt.py \
 
 `--layout-strategy maxrects` is the default. It embeds deterministic atlas placement guidance in the generated prompt so the image model does not invent packing or crowd components together. Use `--layout-strategy area-budget` only as a legacy fallback when you deliberately want the old fill-budget warning without explicit placements.
 
+MaxRects reserves an external label height of 20px and a label gap of 20px by default. Draw each component id only inside its planned label rectangle. Draw sprite art only inside the planned content rectangle. The label and content together are wrapped by the cell padding.
+
 ## Core Rules
 
 - Do not crop rectangular regions from the source effect image and call them sprites.
@@ -48,6 +50,7 @@ python scripts/build_atlas_prompt.py \
 - Style words affect only allowed component surfaces: border, trim, bevel, ornament, glow, material, and declared filled regions.
 - A `flat_fill` component must stay clean and flat. Do not add painterly texture, random lines, grit, noise, brush strokes, invented symbols, or mottled shading.
 - Do not invent detail. If the source UI is flat, low-detail, or icon-like, preserve that simplicity instead of adding extra line art, grain, symbols, cracks, brushwork, or internal texture.
+- Do not infer missing ornament, hidden decoration, icons, text, symbols, cracks, or texture when the source does not show enough evidence. When uncertain, keep the sprite simple and faithful to the visible style contract.
 - For `occlusion.status = partially_occluded`, redraw a complete unobstructed sprite. Do not include the text, badge, floating overlay, neighboring sprite, or source pixels that cover it in the mockup.
 - A `bar_fill_texture` component is a full rectangular fill texture behind its track or frame. Do not infer a non-rectangular silhouette from decorative frame occlusion; clipping and masking happen later in HTML.
 - A `bar_fill_texture` component with rich texture, rich interior texture, glow, or pattern must not collapse into flat color.
@@ -56,7 +59,7 @@ python scripts/build_atlas_prompt.py \
 - Do not rotate components.
 - Canvas size is a generation preference, not the source image dimensions.
 - Do not force all components into one image.
-- Split sheets by group or component subset when the selected components exceed the prompt builder's fill budget.
+- Split sheets by group or component subset when MaxRects creates too many atlases for the current generation request.
 - Do not increase target_px, scale, or sprite resolution to solve packing.
 - Large panels, long bars, tall rails, and complex frames may be isolated in their own labeled atlas sheet.
 - Preserve target resolution and clarity over packing density.
@@ -77,4 +80,4 @@ atlas/panels_01.png
 atlas/bars_01.png
 ```
 
-The external label for each component is allowed only outside sprite crop areas. Labels must not overlap, touch, or be inside any sprite.
+The external label for each component is allowed only in its planned label rectangle outside sprite crop areas. Labels must not overlap, touch, or be inside any sprite.
